@@ -489,6 +489,7 @@ void homeAllSceneDiscs(){
      Serial.println(smallestTimingInPosition);
     if (smallestTimingInPosition == 4)
       smallestTimingInPosition = 0;
+    delay(2000);
     *currentDiscPosition = smallestTimingInPosition;
     Serial.print("The position of disc ");
     Serial.print(currentDiscNumber);
