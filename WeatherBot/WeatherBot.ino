@@ -433,19 +433,35 @@ void homeAllSceneDiscs(){
       delay(1);
     }
     discServo.write(90); //stops the servo
-    delay(500);
-
+    Serial.println("-------------------   found first notch ------------ ");
+    delay(1000);
     //find the next five notches whilst timing the distance between them
       for (byte n = 0; n<5; n = n+1){
       startMillis = millis();
       discServo.write(currentDiscRotationSpeed);                  // start the servo moving
       delay(currentNotchClearanceDelay[d - 1]); //this delay ensures we leave the notch before we check the limit switch too soon and mistake the notch we were already in as the next notch!
-      while (digitalRead(currentDiscSwitch) == 1) {
+      
+      byte test, testcount = 0;
+      while (true) {
+        test = digitalRead(currentDiscSwitch);
+        //// test equal 0 means is a notch
+        if (test == 0) break;
+        /*if (test == 0)
+          Serial.print(test);
+        testcount++;
+        if(testcount > 9)
+        {
+          testcount = 0;
+          Serial.println("");
+        }*/
         delay(1);
       }
       discServo.write(90); //stops the servo
       currentMillis = millis();
-      delay(500);    
+      Serial.print("------------------- ");
+      Serial.print(n);
+      Serial.println(" -------------------");
+      delay(1500);
       discPositionTimingArray[n] = (currentMillis - startMillis);
     }
     
@@ -503,6 +519,7 @@ void homeAllSceneDiscs(){
   Serial.print(" is now currently scene ");
   Serial.println(*currentDiscPosition);
   Serial.println("");
+    delay(5000);
   }
   sceneDiscsHomed = true;
 }
@@ -623,11 +640,15 @@ void moveSpecifiedServo(int servoBeingMoved, int positionsToMove){
     delay(1);
     }
     discServo.write(90); //stops the servo
+    delay(10);
+    discServo.write(90); //stops the servo
+    delay(10);
+    discServo.write(90); //stops the servo
+    delay(3000);
     discServo.detach();
     Serial.print("We still need to move ");
     Serial.print(r-1);
     Serial.println(" time(s) more around to get to where we want to be.");
-    delay(1000);
   }
   Serial.println("We're there.");
   Serial.println("");
