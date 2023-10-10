@@ -190,8 +190,8 @@ void loop() {
     if (WiFi.status() == WL_CONNECTED) {
 
 
-      jsonBuffer = httpGETRequest(serverPath.c_str());
-      //Serial.println(jsonBuffer);
+      jsonBuffer = httpGETRequest(todayWeatherApi.c_str());
+  
       JSONVar myObject = JSON.parse(jsonBuffer);
 
       // JSON.typeof(jsonVar) can be used to get the type of the var
@@ -201,25 +201,37 @@ void loop() {
       }
 
       // Storing todays weather
-      weatherTodaysDescription = myObject["daily"][0]["weather"][0]["description"];
-      weatherTodaysTempFeel = myObject["daily"][0]["feels_like"]["day"];
-      weatherTodaysPrecipitationProbability = myObject["daily"][0]["pop"];
-      weatherTodaysWindSpeed = myObject["daily"][0]["wind_speed"];
-      weatherTodaysCloudCover = myObject["daily"][0]["clouds"];
-      weatherTodaysPrecipitationQty  = myObject["daily"][0]["rain"];
-      Serial.print("Amount of rain today: ");
-      Serial.println(weatherTodaysPrecipitationQty);
-      Serial.print("Amount of clouds today: ");
-      Serial.println(weatherTodaysCloudCover);
+      weatherTodaysDescription = JSON.stringify(myObject["weather"][0]["description"]);
+      weatherTodaysTempFeel = myObject["main"]["feels_like"];
+      weatherTodaysPrecipitationProbability = myObject["main"]["humidity"];
+      weatherTodaysWindSpeed = myObject["wind"]["speed"];
+      weatherTodaysCloudCover = myObject["clouds"]["all"];
+      weatherTodaysPrecipitationQty  = myObject["rain"]["1h"];
 
+
+      // Serial.print("Amount of rain today: ");
+      // Serial.println(weatherTodaysPrecipitationQty);
+      // Serial.print("Amount of clouds today: ");
+      // Serial.println(weatherTodaysCloudCover);
+
+
+
+      jsonBuffer = httpGETRequest(serverPath.c_str());
+      myObject = JSON.parse(jsonBuffer);
+
+      // JSON.typeof(jsonVar) can be used to get the type of the var
+      if (JSON.typeof(myObject) == "undefined") {
+        Serial.println("Parsing input failed!");
+        return;
+      }
 
       // Storing tomorrows weather
-      weatherTomorrowsDescription = myObject["daily"][1]["weather"][0]["description"];
-      weatherTomorrowsTempFeel = myObject["daily"][1]["feels_like"]["day"];
-      weatherTomorrowsPrecipitationProbability = myObject["daily"][1]["pop"];
-      weatherTomorrowsWindSpeed = myObject["daily"][1]["wind_speed"];
-      weatherTomorrowsCloudCover = myObject["daily"][1]["clouds"];
-      weatherTomorrowsPrecipitationQty  = myObject["daily"][1]["rain"];
+      weatherTomorrowsDescription = JSON.stringify(myObject["list"][1]["weather"][0]["description"]);
+      weatherTomorrowsTempFeel = myObject["list"][1]["feels_like"]["day"];
+      weatherTomorrowsPrecipitationProbability = myObject["list"][1]["humidity"];
+      weatherTomorrowsWindSpeed = myObject["list"][1]["speed"];
+      weatherTomorrowsCloudCover = myObject["list"][1]["clouds"];
+      weatherTomorrowsPrecipitationQty  = myObject["list"][1]["rain"];
 
       // send weather data to the screen
       screenOutput();
@@ -304,7 +316,6 @@ void screenOutput()
   // --------- TODAYS WEATHER --------------
   //first line of todays weather
   display.setCursor(5, 20);
-  display.print("Dress for ");
   display.println(weatherTodaysDescription);
   
   display.drawBitmap(0, 27, epd_bitmap_Temp_32, 32, 32, GxEPD_BLACK);
@@ -315,13 +326,13 @@ void screenOutput()
   //second line of todays weather
   display.drawBitmap(100, 27, epd_bitmap_Precip_32, 32, 32, GxEPD_BLACK);
   display.setCursor(130, 50);
-  display.print((weatherTodaysPrecipitationProbability)*100,0);
+  display.print((weatherTodaysPrecipitationProbability),0);
   display.println("%");
 
   display.drawBitmap(190, 27, epd_bitmap_Wind_32, 32, 32, GxEPD_BLACK);
   display.setCursor(222, 50);
   display.print(weatherTodaysWindSpeed * 2.2369,0);
-  display.println("mph");
+  display.println("m/s");
 
 
   // --------- TOMORROWS WEATHER --------------
@@ -339,13 +350,13 @@ void screenOutput()
   
   display.drawBitmap(100, 97, epd_bitmap_Precip_32, 32, 32, GxEPD_BLACK);
   display.setCursor(130, 120);
-  display.print((weatherTomorrowsPrecipitationProbability)*100,0);
+  display.print((weatherTomorrowsPrecipitationProbability),0);
   display.println("%");
 
   display.drawBitmap(190, 97, epd_bitmap_Wind_32, 32, 32, GxEPD_BLACK);
   display.setCursor(222, 120);
   display.print(weatherTomorrowsWindSpeed * 2.2369,0);
-  display.println("mph");
+  display.println("m/s");
 
   //update the display
   display.display();
