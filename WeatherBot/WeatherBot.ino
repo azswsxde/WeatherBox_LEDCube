@@ -252,26 +252,26 @@ void Task1code( void * pvParameters ) {
   //Serial.print("This function task1 isrunning on core ");
   //Serial.println(xPortGetCoreID());
 
-  if (sceneDiscsHomed == false){
-    Serial.println("Trying to home all four scene discs...");
-    homeAllSceneDiscs();
-    Serial.println("...homing of scene discs completed.");
-  }
+    if (sceneDiscsHomed == false){
+      Serial.println("Trying to home all four scene discs...");
+      homeAllSceneDiscs();
+      Serial.println("...homing of scene discs completed.");
+    }
 
-  Serial.print("The value of 'weatherUpdateWaitingToBeShownOnDiscs' is: "); //Check for an updated weather report which we have not diplayed on the scene discs yet
-  Serial.print(weatherUpdateWaitingToBeShownOnDiscs);
-  Serial.println(". This means we are still waiting for a weather forecast update via WiFi......");
-  delay(5000);
+    Serial.print("The value of 'weatherUpdateWaitingToBeShownOnDiscs' is: "); //Check for an updated weather report which we have not diplayed on the scene discs yet
+    Serial.print(weatherUpdateWaitingToBeShownOnDiscs);
+    Serial.println(". This means we are still waiting for a weather forecast update via WiFi......");
+    delay(5000);
 
-  if (weatherUpdateWaitingToBeShownOnDiscs == true) {
-    Serial.println("Weather update received. Converting to scene discs locations...");
-    convertWeatherToSceneDiscsSceneLocations(); // look at the weather forecast from OpenWeatherMaps and figure out which segmnet of each discs we need to display
-    Serial.println("... scene disc positions decided.");
-    Serial.println("Moving discs to show weather forecast received from OpenWeatherMaps....");
-    showWeatherOnSceneDiscs();
-    weatherUpdateWaitingToBeShownOnDiscs = false; //set the value to false as we the scene discs currently represent the same weather that the e-ink display is reporting.
-    Serial.println("Weather update for the scene discs is complete. Waiting for the next update to display.");
-  }
+    if (weatherUpdateWaitingToBeShownOnDiscs == true) {
+      Serial.println("Weather update received. Converting to scene discs locations...");
+      convertWeatherToSceneDiscsSceneLocations(); // look at the weather forecast from OpenWeatherMaps and figure out which segmnet of each discs we need to display
+      Serial.println("... scene disc positions decided.");
+      Serial.println("Moving discs to show weather forecast received from OpenWeatherMaps....");
+      showWeatherOnSceneDiscs();
+      weatherUpdateWaitingToBeShownOnDiscs = false; //set the value to false as we the scene discs currently represent the same weather that the e-ink display is reporting.
+      Serial.println("Weather update for the scene discs is complete. Waiting for the next update to display.");
+    }
   }
 }
 
@@ -414,18 +414,18 @@ void homeAllSceneDiscs(){
   Serial.println("<Function 'homeAllSceneDiscs'> Calculating positioning of scene discs and then setting them to the correct weather.....");
   for (byte d = 1; d<5; d = d+1){
     //select each disc in turn
-      if (d == 1){
-        setDiscVariables(1);
-      }
-      else if (d == 2){
-        setDiscVariables(2);
-      }
-      else if (d == 3){
-        setDiscVariables(3);
-      }
-      else if (d == 4){
-        setDiscVariables(4);
-      }
+    if (d == 1){
+      setDiscVariables(1);
+    }
+    else if (d == 2){
+      setDiscVariables(2);
+    }
+    else if (d == 3){
+      setDiscVariables(3);
+    }
+    else if (d == 4){
+      setDiscVariables(4);
+    }
     Serial.print("Counting the time to travel between the notches on disc");
     Serial.println(currentDiscNumber);
     //Find any notch to start our timings from
@@ -438,7 +438,7 @@ void homeAllSceneDiscs(){
     Serial.println("-------------------   found first notch ------------ ");
     delay(1000);
     //find the next five notches whilst timing the distance between them
-      for (byte n = 0; n<5; n = n+1){
+    for (byte n = 0; n<5; n = n+1){
       startMillis = millis();
       discServo.write(currentDiscRotationSpeed);                  // start the servo moving
       delay(currentNotchClearanceDelay[d - 1]); //this delay ensures we leave the notch before we check the limit switch too soon and mistake the notch we were already in as the next notch!
@@ -467,8 +467,8 @@ void homeAllSceneDiscs(){
       discPositionTimingArray[n] = (currentMillis - startMillis);
     }
     
-  printDiscTimingArray();
-  discServo.detach();
+    printDiscTimingArray();
+    discServo.detach();
 
   //find the 'double notch' marker by looking for the smallest distance between two notches
     int smallestTimingInArray = 99999999;
@@ -482,13 +482,13 @@ void homeAllSceneDiscs(){
           smallestTimingInPosition = i;        
       }
     }
-    Serial.println("....");
-    Serial.print("Smallest value found was: ");
-    Serial.print(smallestTimingInArray);
-    Serial.print(" which is found in the following position in the timings array: ");
-    Serial.println(smallestTimingInPosition);
-    if (smallestTimingInPosition == 4){smallestTimingInPosition = 0;}
-
+     Serial.println("....");
+     Serial.print("Smallest value found was: ");
+     Serial.print(smallestTimingInArray);
+     Serial.print(" which is found in the following position in the timings array: ");
+     Serial.println(smallestTimingInPosition);
+    if (smallestTimingInPosition == 4)
+      smallestTimingInPosition = 0;
     *currentDiscPosition = smallestTimingInPosition;
     Serial.print("The position of disc ");
     Serial.print(currentDiscNumber);
@@ -512,12 +512,12 @@ void homeAllSceneDiscs(){
     //Do nothing, this disc has already found itself in the homed position - woop woop!
   }
 
-  *currentDiscPosition = 1;
-  Serial.print("The position of disc ");
-  Serial.print(currentDiscNumber);
-  Serial.print(" is now currently scene ");
-  Serial.println(*currentDiscPosition);
-  Serial.println("");
+    *currentDiscPosition = 1;
+    Serial.print("The position of disc ");
+    Serial.print(currentDiscNumber);
+    Serial.print(" is now currently scene ");
+    Serial.println(*currentDiscPosition);
+    Serial.println("");
     delay(5000);
   }
   sceneDiscsHomed = true;
@@ -636,7 +636,7 @@ void moveSpecifiedServo(int servoBeingMoved, int positionsToMove){
     discServo.write(currentDiscRotationSpeed);                  // start the servo moving
     delay(MoveDelay[currentDiscNumber - 1]);
     while (digitalRead(currentDiscSwitch) == 1) {
-    delay(1);
+      delay(1);
     }
     discServo.write(90); //stops the servo
     delay(10);
