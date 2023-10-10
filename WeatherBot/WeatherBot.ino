@@ -150,8 +150,8 @@ void setup() {
   Serial.begin(115200);
   screenOutputDIYMWelcome();
 
-  Serial.print("Current value for 'lastTime' is: ");
-Serial.println(lastTime);
+  // Serial.print("Current value for 'lastTime' is: ");
+  // Serial.println(lastTime);
 
 
 //create a task that will be executed in the Task1code() function, with priority 0 and executed on core 0. /* Task function. *//* name of task. *//* Stack size of task *//* parameter of the task *//* priority of the task *//* Task handle to keep track of created task */
@@ -289,12 +289,12 @@ String httpGETRequest(const char* serverName) {
   String payload = "{}";
 
   if (httpResponseCode > 0) {
-    Serial.print("HTTP Response code: ");
-    Serial.println(httpResponseCode);
+    // Serial.print("HTTP Response code: ");
+    // Serial.println(httpResponseCode);
     payload = http.getString();
   } else {
-    Serial.print("Error code: ");
-    Serial.println(httpResponseCode);
+    // Serial.print("Error code: ");
+    // Serial.println(httpResponseCode);
   }
   // Free resources
   http.end();
@@ -374,6 +374,8 @@ void screenOutputDIYMWelcome()
     delay(3000);
   }
 void setDiscVariables(int servoToMove){
+  Serial.print("setting servo");
+  Serial.println(servoToMove);
   if (servoToMove == 1){
     currentDiscSwitch = discOneSwitch;
     currentDiscRotationSpeed = 90 + servoSpeed_disc1;
@@ -425,7 +427,7 @@ void homeAllSceneDiscs(){
         setDiscVariables(4);
       }
     Serial.print("Counting the time to travel between the notches on disc");
-    Serial.print(currentDiscNumber);
+    Serial.println(currentDiscNumber);
     //Find any notch to start our timings from
     discServo.attach(currentDiscServoPin, minUs, maxUs);   // attaches the servo to the servo object
     discServo.write(currentDiscRotationSpeed);                  // start the servo moving
@@ -471,12 +473,9 @@ void homeAllSceneDiscs(){
   //find the 'double notch' marker by looking for the smallest distance between two notches
     int smallestTimingInArray = 99999999;
     int smallestTimingInPosition = 10;
-    Serial.print("Checking value in position:");
+    // Serial.print("Checking value in position:");
     for(int i = 0; i<5; i = i+1)
     {
-      Serial.print(" ");
-      Serial.print(i);
-      Serial.print(",");
       if(discPositionTimingArray[i] < smallestTimingInArray)
       {
           smallestTimingInArray = discPositionTimingArray[i];
