@@ -24,7 +24,10 @@ const char* password = "YOUR-WIFI-PASSWORD";   // YOUR WIFI PASSWORD
 
 const int servoSpeed = 23;                // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
 
-String serverPath = "http://api.openweathermap.org/data/3.0/onecall?lat={latitude}&lon={longitude}&units=metric&exclude=minutely&appid={Your-API-Key}";  // Your API call made up as follows: http://api.openweathermap.org/data/2.5/onecall?lat={latitude}}&lon=-{longitude}}&units=metric&exclude=minutely&appid={Your-API-Key}
+const int servoSpeed_disc1 = 20;                // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
+const int servoSpeed_disc2 = 20;                // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
+const int servoSpeed_disc3 = 20;                // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
+const int servoSpeed_disc4 = 20;                // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
 
 unsigned long timerDelay = 3600000;  //20 seconds = 20000.   60 second = 60000.  5 minutes. =  300000.  Hourly = 3600000. Daily = 86400000. Check the API call limits per hour/minute to avoid getting blocked/banned
 
@@ -59,8 +62,9 @@ const int rainfallAboveWhichToShowVeryWetSky = 5;  // in mm of rainfall
 ///                                                                                                                                                      /////
 ///                                                                                                                                                      /////
 
-const int currentNotchClearanceDelay = 250; //this delay ensures we leave the notch before we check the limit switch too soon and mistake the notch we were already in as the next notch! This can be adjusted only if you have issues with the discs not turning enough before the limit switched value is read. Default = 250
-
+//const int currentNotchClearanceDelay = 400; //this delay ensures we leave the notch before we check the limit switch too soon and mistake the notch we were already in as the next notch! This can be adjusted only if you have issues with the discs not turning enough before the limit switched value is read. Default = 250
+const int currentNotchClearanceDelay[4] = {400, 300, 300, 300};
+const int MoveDelay[4] = {300, 400, 400, 400};
 ///                                                                                                                                                      /////
 ///                                                                                                                                                      /////
 ///                             END OF VARIABLE AND CONSTANTS TO BE EDITED ONLY IF YOU HAVE PROBLEMS                                                     /////
@@ -138,7 +142,7 @@ String weatherTomorrowsDescription;
   unsigned long elapsedMillis;
 
 // Arrays for positioning each disc during startup
-int discPositionTimingArray[4];
+int discPositionTimingArray[5];
 
 TaskHandle_t Task1;
 
@@ -361,7 +365,7 @@ void screenOutputDIYMWelcome()
 void setDiscVariables(int servoToMove){
   if (servoToMove == 1){
     currentDiscSwitch = discOneSwitch;
-    currentDiscRotationSpeed = 90 + servoSpeed;
+    currentDiscRotationSpeed = 90 + servoSpeed_disc1;
     currentDiscServoPin = servo1Pin;
     currentDiscNumber = 1;
     currentDiscPosition = &discOneCurrentPosition;
@@ -369,7 +373,7 @@ void setDiscVariables(int servoToMove){
   } 
   else if (servoToMove == 2){
       currentDiscSwitch = discTwoSwitch;
-      currentDiscRotationSpeed = 90 - servoSpeed;
+      currentDiscRotationSpeed = 90 - servoSpeed_disc2;
       currentDiscServoPin = servo2Pin;
       currentDiscNumber = 2;
       currentDiscPosition = &discTwoCurrentPosition;
@@ -377,7 +381,7 @@ void setDiscVariables(int servoToMove){
   }
   else if (servoToMove == 3){
     currentDiscSwitch = discThreeSwitch;
-    currentDiscRotationSpeed = 90 + servoSpeed;
+    currentDiscRotationSpeed = 90 + servoSpeed_disc3;
     currentDiscServoPin = servo3Pin;
     currentDiscNumber = 3;
     currentDiscPosition = &discThreeCurrentPosition;
@@ -385,7 +389,7 @@ void setDiscVariables(int servoToMove){
   } 
   else if (servoToMove == 4){
       currentDiscSwitch = discFourSwitch;
-      currentDiscRotationSpeed = 90 - servoSpeed;
+      currentDiscRotationSpeed = 90 - servoSpeed_disc4;
       currentDiscServoPin = servo4Pin;
       currentDiscNumber = 4;
       currentDiscPosition = &discFourCurrentPosition;
@@ -424,7 +428,7 @@ void homeAllSceneDiscs(){
       for (byte n = 0; n<5; n = n+1){
       startMillis = millis();
       discServo.write(currentDiscRotationSpeed);                  // start the servo moving
-      delay(currentNotchClearanceDelay); //this delay ensures we leave the notch before we check the limit switch too soon and mistake the notch we were already in as the next notch!
+      delay(currentNotchClearanceDelay[d - 1]); //this delay ensures we leave the notch before we check the limit switch too soon and mistake the notch we were already in as the next notch!
       while (digitalRead(currentDiscSwitch) == 1) {
         delay(1);
       }
@@ -603,7 +607,7 @@ void moveSpecifiedServo(int servoBeingMoved, int positionsToMove){
   for (byte r = positionsToMove; r != 0; r = r-1){
     discServo.attach(currentDiscServoPin, minUs, maxUs);   // attaches the servo to the servo object
     discServo.write(currentDiscRotationSpeed);                  // start the servo moving
-    delay(150);
+    delay(MoveDelay[currentDiscNumber - 1]);
     while (digitalRead(currentDiscSwitch) == 1) {
     delay(1);
     }
