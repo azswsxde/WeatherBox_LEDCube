@@ -24,7 +24,10 @@ const char* password = "YOUR-WIFI-PASSWORD";   // YOUR WIFI PASSWORD
 
 const int servoSpeed = 23;                // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
 
-String serverPath = "http://api.openweathermap.org/data/3.0/onecall?lat={latitude}&lon={longitude}&units=metric&exclude=minutely&appid={Your-API-Key}";  // Your API call made up as follows: http://api.openweathermap.org/data/2.5/onecall?lat={latitude}}&lon=-{longitude}}&units=metric&exclude=minutely&appid={Your-API-Key}
+const int servoSpeed_disc1 = 20;                // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
+const int servoSpeed_disc2 = 20;                // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
+const int servoSpeed_disc3 = 20;                // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
+const int servoSpeed_disc4 = 20;                // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
 
 unsigned long timerDelay = 3600000;  //20 seconds = 20000.   60 second = 60000.  5 minutes. =  300000.  Hourly = 3600000. Daily = 86400000. Check the API call limits per hour/minute to avoid getting blocked/banned
 
@@ -59,8 +62,9 @@ const int rainfallAboveWhichToShowVeryWetSky = 5;  // in mm of rainfall
 ///                                                                                                                                                      /////
 ///                                                                                                                                                      /////
 
-const int currentNotchClearanceDelay = 250; //this delay ensures we leave the notch before we check the limit switch too soon and mistake the notch we were already in as the next notch! This can be adjusted only if you have issues with the discs not turning enough before the limit switched value is read. Default = 250
-
+//const int currentNotchClearanceDelay = 400; //this delay ensures we leave the notch before we check the limit switch too soon and mistake the notch we were already in as the next notch! This can be adjusted only if you have issues with the discs not turning enough before the limit switched value is read. Default = 250
+const int currentNotchClearanceDelay[4] = {400, 300, 300, 300};
+const int MoveDelay[4] = {300, 400, 400, 400};
 ///                                                                                                                                                      /////
 ///                                                                                                                                                      /////
 ///                             END OF VARIABLE AND CONSTANTS TO BE EDITED ONLY IF YOU HAVE PROBLEMS                                                     /////
@@ -138,7 +142,7 @@ String weatherTomorrowsDescription;
   unsigned long elapsedMillis;
 
 // Arrays for positioning each disc during startup
-int discPositionTimingArray[4];
+int discPositionTimingArray[5];
 
 TaskHandle_t Task1;
 
@@ -146,8 +150,8 @@ void setup() {
   Serial.begin(115200);
   screenOutputDIYMWelcome();
 
-  Serial.print("Current value for 'lastTime' is: ");
-Serial.println(lastTime);
+  // Serial.print("Current value for 'lastTime' is: ");
+  // Serial.println(lastTime);
 
 
 //create a task that will be executed in the Task1code() function, with priority 0 and executed on core 0. /* Task function. *//* name of task. *//* Stack size of task *//* parameter of the task *//* priority of the task *//* Task handle to keep track of created task */
@@ -186,8 +190,8 @@ void loop() {
     if (WiFi.status() == WL_CONNECTED) {
 
 
-      jsonBuffer = httpGETRequest(serverPath.c_str());
-      //Serial.println(jsonBuffer);
+      jsonBuffer = httpGETRequest(todayWeatherApi.c_str());
+  
       JSONVar myObject = JSON.parse(jsonBuffer);
 
       // JSON.typeof(jsonVar) can be used to get the type of the var
@@ -197,25 +201,37 @@ void loop() {
       }
 
       // Storing todays weather
-      weatherTodaysDescription = myObject["daily"][0]["weather"][0]["description"];
-      weatherTodaysTempFeel = myObject["daily"][0]["feels_like"]["day"];
-      weatherTodaysPrecipitationProbability = myObject["daily"][0]["pop"];
-      weatherTodaysWindSpeed = myObject["daily"][0]["wind_speed"];
-      weatherTodaysCloudCover = myObject["daily"][0]["clouds"];
-      weatherTodaysPrecipitationQty  = myObject["daily"][0]["rain"];
-      Serial.print("Amount of rain today: ");
-      Serial.println(weatherTodaysPrecipitationQty);
-      Serial.print("Amount of clouds today: ");
-      Serial.println(weatherTodaysCloudCover);
+      weatherTodaysDescription = JSON.stringify(myObject["weather"][0]["description"]);
+      weatherTodaysTempFeel = myObject["main"]["feels_like"];
+      weatherTodaysPrecipitationProbability = myObject["main"]["humidity"];
+      weatherTodaysWindSpeed = myObject["wind"]["speed"];
+      weatherTodaysCloudCover = myObject["clouds"]["all"];
+      weatherTodaysPrecipitationQty  = myObject["rain"]["1h"];
 
+
+      // Serial.print("Amount of rain today: ");
+      // Serial.println(weatherTodaysPrecipitationQty);
+      // Serial.print("Amount of clouds today: ");
+      // Serial.println(weatherTodaysCloudCover);
+
+
+
+      jsonBuffer = httpGETRequest(serverPath.c_str());
+      myObject = JSON.parse(jsonBuffer);
+
+      // JSON.typeof(jsonVar) can be used to get the type of the var
+      if (JSON.typeof(myObject) == "undefined") {
+        Serial.println("Parsing input failed!");
+        return;
+      }
 
       // Storing tomorrows weather
-      weatherTomorrowsDescription = myObject["daily"][1]["weather"][0]["description"];
-      weatherTomorrowsTempFeel = myObject["daily"][1]["feels_like"]["day"];
-      weatherTomorrowsPrecipitationProbability = myObject["daily"][1]["pop"];
-      weatherTomorrowsWindSpeed = myObject["daily"][1]["wind_speed"];
-      weatherTomorrowsCloudCover = myObject["daily"][1]["clouds"];
-      weatherTomorrowsPrecipitationQty  = myObject["daily"][1]["rain"];
+      weatherTomorrowsDescription = JSON.stringify(myObject["list"][1]["weather"][0]["description"]);
+      weatherTomorrowsTempFeel = myObject["list"][1]["feels_like"]["day"];
+      weatherTomorrowsPrecipitationProbability = myObject["list"][1]["humidity"];
+      weatherTomorrowsWindSpeed = myObject["list"][1]["speed"];
+      weatherTomorrowsCloudCover = myObject["list"][1]["clouds"];
+      weatherTomorrowsPrecipitationQty  = myObject["list"][1]["rain"];
 
       // send weather data to the screen
       screenOutput();
@@ -236,26 +252,26 @@ void Task1code( void * pvParameters ) {
   //Serial.print("This function task1 isrunning on core ");
   //Serial.println(xPortGetCoreID());
 
-  if (sceneDiscsHomed == false){
-    Serial.println("Trying to home all four scene discs...");
-    homeAllSceneDiscs();
-    Serial.println("...homing of scene discs completed.");
-  }
+    if (sceneDiscsHomed == false){
+      Serial.println("Trying to home all four scene discs...");
+      homeAllSceneDiscs();
+      Serial.println("...homing of scene discs completed.");
+    }
 
-  Serial.print("The value of 'weatherUpdateWaitingToBeShownOnDiscs' is: "); //Check for an updated weather report which we have not diplayed on the scene discs yet
-  Serial.print(weatherUpdateWaitingToBeShownOnDiscs);
-  Serial.println(". This means we are still waiting for a weather forecast update via WiFi......");
-  delay(5000);
+    Serial.print("The value of 'weatherUpdateWaitingToBeShownOnDiscs' is: "); //Check for an updated weather report which we have not diplayed on the scene discs yet
+    Serial.print(weatherUpdateWaitingToBeShownOnDiscs);
+    Serial.println(". This means we are still waiting for a weather forecast update via WiFi......");
+    delay(5000);
 
-  if (weatherUpdateWaitingToBeShownOnDiscs == true) {
-    Serial.println("Weather update received. Converting to scene discs locations...");
-    convertWeatherToSceneDiscsSceneLocations(); // look at the weather forecast from OpenWeatherMaps and figure out which segmnet of each discs we need to display
-    Serial.println("... scene disc positions decided.");
-    Serial.println("Moving discs to show weather forecast received from OpenWeatherMaps....");
-    showWeatherOnSceneDiscs();
-    weatherUpdateWaitingToBeShownOnDiscs = false; //set the value to false as we the scene discs currently represent the same weather that the e-ink display is reporting.
-    Serial.println("Weather update for the scene discs is complete. Waiting for the next update to display.");
-  }
+    if (weatherUpdateWaitingToBeShownOnDiscs == true) {
+      Serial.println("Weather update received. Converting to scene discs locations...");
+      convertWeatherToSceneDiscsSceneLocations(); // look at the weather forecast from OpenWeatherMaps and figure out which segmnet of each discs we need to display
+      Serial.println("... scene disc positions decided.");
+      Serial.println("Moving discs to show weather forecast received from OpenWeatherMaps....");
+      showWeatherOnSceneDiscs();
+      weatherUpdateWaitingToBeShownOnDiscs = false; //set the value to false as we the scene discs currently represent the same weather that the e-ink display is reporting.
+      Serial.println("Weather update for the scene discs is complete. Waiting for the next update to display.");
+    }
   }
 }
 
@@ -273,12 +289,12 @@ String httpGETRequest(const char* serverName) {
   String payload = "{}";
 
   if (httpResponseCode > 0) {
-    Serial.print("HTTP Response code: ");
-    Serial.println(httpResponseCode);
+    // Serial.print("HTTP Response code: ");
+    // Serial.println(httpResponseCode);
     payload = http.getString();
   } else {
-    Serial.print("Error code: ");
-    Serial.println(httpResponseCode);
+    // Serial.print("Error code: ");
+    // Serial.println(httpResponseCode);
   }
   // Free resources
   http.end();
@@ -300,7 +316,6 @@ void screenOutput()
   // --------- TODAYS WEATHER --------------
   //first line of todays weather
   display.setCursor(5, 20);
-  display.print("Dress for ");
   display.println(weatherTodaysDescription);
   
   display.drawBitmap(0, 27, epd_bitmap_Temp_32, 32, 32, GxEPD_BLACK);
@@ -311,13 +326,13 @@ void screenOutput()
   //second line of todays weather
   display.drawBitmap(100, 27, epd_bitmap_Precip_32, 32, 32, GxEPD_BLACK);
   display.setCursor(130, 50);
-  display.print((weatherTodaysPrecipitationProbability)*100,0);
+  display.print((weatherTodaysPrecipitationProbability),0);
   display.println("%");
 
   display.drawBitmap(190, 27, epd_bitmap_Wind_32, 32, 32, GxEPD_BLACK);
   display.setCursor(222, 50);
   display.print(weatherTodaysWindSpeed * 2.2369,0);
-  display.println("mph");
+  display.println("m/s");
 
 
   // --------- TOMORROWS WEATHER --------------
@@ -335,13 +350,13 @@ void screenOutput()
   
   display.drawBitmap(100, 97, epd_bitmap_Precip_32, 32, 32, GxEPD_BLACK);
   display.setCursor(130, 120);
-  display.print((weatherTomorrowsPrecipitationProbability)*100,0);
+  display.print((weatherTomorrowsPrecipitationProbability),0);
   display.println("%");
 
   display.drawBitmap(190, 97, epd_bitmap_Wind_32, 32, 32, GxEPD_BLACK);
   display.setCursor(222, 120);
   display.print(weatherTomorrowsWindSpeed * 2.2369,0);
-  display.println("mph");
+  display.println("m/s");
 
   //update the display
   display.display();
@@ -359,9 +374,11 @@ void screenOutputDIYMWelcome()
     delay(3000);
   }
 void setDiscVariables(int servoToMove){
+  Serial.print("setting servo");
+  Serial.println(servoToMove);
   if (servoToMove == 1){
     currentDiscSwitch = discOneSwitch;
-    currentDiscRotationSpeed = 90 + servoSpeed;
+    currentDiscRotationSpeed = 90 + servoSpeed_disc1;
     currentDiscServoPin = servo1Pin;
     currentDiscNumber = 1;
     currentDiscPosition = &discOneCurrentPosition;
@@ -369,7 +386,7 @@ void setDiscVariables(int servoToMove){
   } 
   else if (servoToMove == 2){
       currentDiscSwitch = discTwoSwitch;
-      currentDiscRotationSpeed = 90 - servoSpeed;
+      currentDiscRotationSpeed = 90 - servoSpeed_disc2;
       currentDiscServoPin = servo2Pin;
       currentDiscNumber = 2;
       currentDiscPosition = &discTwoCurrentPosition;
@@ -377,7 +394,7 @@ void setDiscVariables(int servoToMove){
   }
   else if (servoToMove == 3){
     currentDiscSwitch = discThreeSwitch;
-    currentDiscRotationSpeed = 90 + servoSpeed;
+    currentDiscRotationSpeed = 90 + servoSpeed_disc3;
     currentDiscServoPin = servo3Pin;
     currentDiscNumber = 3;
     currentDiscPosition = &discThreeCurrentPosition;
@@ -385,7 +402,7 @@ void setDiscVariables(int servoToMove){
   } 
   else if (servoToMove == 4){
       currentDiscSwitch = discFourSwitch;
-      currentDiscRotationSpeed = 90 - servoSpeed;
+      currentDiscRotationSpeed = 90 - servoSpeed_disc4;
       currentDiscServoPin = servo4Pin;
       currentDiscNumber = 4;
       currentDiscPosition = &discFourCurrentPosition;
@@ -397,20 +414,20 @@ void homeAllSceneDiscs(){
   Serial.println("<Function 'homeAllSceneDiscs'> Calculating positioning of scene discs and then setting them to the correct weather.....");
   for (byte d = 1; d<5; d = d+1){
     //select each disc in turn
-      if (d == 1){
-        setDiscVariables(1);
-      }
-      else if (d == 2){
-        setDiscVariables(2);
-      }
-      else if (d == 3){
-        setDiscVariables(3);
-      }
-      else if (d == 4){
-        setDiscVariables(4);
-      }
+    if (d == 1){
+      setDiscVariables(1);
+    }
+    else if (d == 2){
+      setDiscVariables(2);
+    }
+    else if (d == 3){
+      setDiscVariables(3);
+    }
+    else if (d == 4){
+      setDiscVariables(4);
+    }
     Serial.print("Counting the time to travel between the notches on disc");
-    Serial.print(currentDiscNumber);
+    Serial.println(currentDiscNumber);
     //Find any notch to start our timings from
     discServo.attach(currentDiscServoPin, minUs, maxUs);   // attaches the servo to the servo object
     discServo.write(currentDiscRotationSpeed);                  // start the servo moving
@@ -418,47 +435,61 @@ void homeAllSceneDiscs(){
       delay(1);
     }
     discServo.write(90); //stops the servo
-    delay(500);
-
+    Serial.println("-------------------   found first notch ------------ ");
+    delay(1000);
     //find the next five notches whilst timing the distance between them
-      for (byte n = 0; n<5; n = n+1){
+    for (byte n = 0; n<5; n = n+1){
       startMillis = millis();
       discServo.write(currentDiscRotationSpeed);                  // start the servo moving
-      delay(currentNotchClearanceDelay); //this delay ensures we leave the notch before we check the limit switch too soon and mistake the notch we were already in as the next notch!
-      while (digitalRead(currentDiscSwitch) == 1) {
+      delay(currentNotchClearanceDelay[d - 1]); //this delay ensures we leave the notch before we check the limit switch too soon and mistake the notch we were already in as the next notch!
+      
+      byte test, testcount = 0;
+      while (true) {
+        test = digitalRead(currentDiscSwitch);
+        //// test equal 0 means is a notch
+        if (test == 0) break;
+        /*if (test == 0)
+          Serial.print(test);
+        testcount++;
+        if(testcount > 9)
+        {
+          testcount = 0;
+          Serial.println("");
+        }*/
         delay(1);
       }
       discServo.write(90); //stops the servo
       currentMillis = millis();
-      delay(500);    
+      Serial.print("------------------- ");
+      Serial.print(n);
+      Serial.println(" -------------------");
+      delay(1500);
       discPositionTimingArray[n] = (currentMillis - startMillis);
     }
     
-  printDiscTimingArray();
-  discServo.detach();
+    printDiscTimingArray();
+    discServo.detach();
 
   //find the 'double notch' marker by looking for the smallest distance between two notches
     int smallestTimingInArray = 99999999;
     int smallestTimingInPosition = 10;
-    Serial.print("Checking value in position:");
+    // Serial.print("Checking value in position:");
     for(int i = 0; i<5; i = i+1)
     {
-      Serial.print(" ");
-      Serial.print(i);
-      Serial.print(",");
       if(discPositionTimingArray[i] < smallestTimingInArray)
       {
           smallestTimingInArray = discPositionTimingArray[i];
           smallestTimingInPosition = i;        
       }
     }
-    Serial.println("....");
-    Serial.print("Smallest value found was: ");
-    Serial.print(smallestTimingInArray);
-    Serial.print(" which is found in the following position in the timings array: ");
-    Serial.println(smallestTimingInPosition);
-    if (smallestTimingInPosition == 4){smallestTimingInPosition = 0;}
-
+     Serial.println("....");
+     Serial.print("Smallest value found was: ");
+     Serial.print(smallestTimingInArray);
+     Serial.print(" which is found in the following position in the timings array: ");
+     Serial.println(smallestTimingInPosition);
+    if (smallestTimingInPosition == 4)
+      smallestTimingInPosition = 0;
+    delay(2000);
     *currentDiscPosition = smallestTimingInPosition;
     Serial.print("The position of disc ");
     Serial.print(currentDiscNumber);
@@ -482,12 +513,13 @@ void homeAllSceneDiscs(){
     //Do nothing, this disc has already found itself in the homed position - woop woop!
   }
 
-  *currentDiscPosition = 1;
-  Serial.print("The position of disc ");
-  Serial.print(currentDiscNumber);
-  Serial.print(" is now currently scene ");
-  Serial.println(*currentDiscPosition);
-  Serial.println("");
+    *currentDiscPosition = 1;
+    Serial.print("The position of disc ");
+    Serial.print(currentDiscNumber);
+    Serial.print(" is now currently scene ");
+    Serial.println(*currentDiscPosition);
+    Serial.println("");
+    delay(5000);
   }
   sceneDiscsHomed = true;
 }
@@ -603,16 +635,20 @@ void moveSpecifiedServo(int servoBeingMoved, int positionsToMove){
   for (byte r = positionsToMove; r != 0; r = r-1){
     discServo.attach(currentDiscServoPin, minUs, maxUs);   // attaches the servo to the servo object
     discServo.write(currentDiscRotationSpeed);                  // start the servo moving
-    delay(150);
+    delay(MoveDelay[currentDiscNumber - 1]);
     while (digitalRead(currentDiscSwitch) == 1) {
-    delay(1);
+      delay(1);
     }
     discServo.write(90); //stops the servo
+    delay(10);
+    discServo.write(90); //stops the servo
+    delay(10);
+    discServo.write(90); //stops the servo
+    delay(3000);
     discServo.detach();
     Serial.print("We still need to move ");
     Serial.print(r-1);
     Serial.println(" time(s) more around to get to where we want to be.");
-    delay(1000);
   }
   Serial.println("We're there.");
   Serial.println("");
