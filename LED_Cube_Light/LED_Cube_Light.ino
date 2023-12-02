@@ -1,761 +1,781 @@
-//  Tech Arrange   
-/*
-  4x4x4 LED Cube
-  Connection Setup: 
-  Columns
-  [(x,y)-Pin]
-  (1,1)-13
-  (1,2)-12
-  (1,3)-11
-  (1,4)-10
-  (2,1)-9
-  (2,2)-8
-  (2,3)-7
-  (2,4)-6
-  (3,1)-5
-  (3-2)-4
-  (3-3)-3
-  (3,4)-2
-  (4,1)-1
-  (4,2)-0
-  (4,3)-A5
-  (4,4)-A4
-  Layers
-  [layer-Pin]
-  a-A0
-  b-A1
-  c-A2
-  d-A3
-*/
-//initializing and declaring led rows
-  int column[16]={13,12,11,10,9,8,7,6,5,4,3,2,1,0,A5,A4};
-//initializing and declaring led layers
-  int layer[4]={A3,A2,A1,A0};
+//  Tech Arrange
+//wifi
+#include "WiFi.h"
+const char* ssid = "3DP_2.4G";    //  YOUR WIFI SSID / NAME
+const char* password = "kingssel5262332";  // YOUR WIFI PASSWORD
+int buttonState;
+// setup server port 8080
+WiFiServer server(8080);
+int latchPin = 16;  // Latch pin (STCP腳位)
+int clockPin = 17; // Clock pin (SHCP腳位)
+int dataPin = 18;
+int latchPin_2 = 33;  // Latch pin (STCP腳位)
+int clockPin_2 = 32; // Clock pin (SHCP腳位)
+int dataPin_2 = 19;
+int LED_delay = 800;
+int Scenes_delay = 4000;
+int receive_data = 0x0;
+String sReceive_tmp;
+// setup core task
+TaskHandle_t Task1;
+const int column_size = 8;
+int column[column_size] = {32};
+int layer[4] = { 5, 23, 22, 21 };
 
-  int time = 250;
- 
-void setup()
-{
-  //setting rows to ouput
-  for(int i = 0; i<16; i++)
-  {
-    pinMode(column[i], OUTPUT);
-  }
+int time_delay = 1500;
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(latchPin, OUTPUT);
+  pinMode(dataPin, OUTPUT);  
+  pinMode(clockPin, OUTPUT);
+  
+  pinMode(latchPin_2, OUTPUT);
+  pinMode(dataPin_2, OUTPUT);  
+  pinMode(clockPin_2, OUTPUT);
+
   //setting layers to output
   for(int i = 0; i<4; i++)
   {
     pinMode(layer[i], OUTPUT);
   }
+  for (int i = 0; i < 4; i++) {
+    digitalWrite(layer[i], LOW);
+  }
+
   //seeding random for random pattern
   randomSeed(analogRead(10));
+
+  WiFi.begin(ssid, password);
+  Serial.println("Connecting");
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(Scenes_delay);
+    Serial.println("Connecting to WiFi...");
+  }
+
+  server.begin();
+  xTaskCreatePinnedToCore(Task1code, "Task1", 15000, NULL, 0, &Task1, 0);
 }
 
-void loop()
-{
-  turnEverythingOff();//turn all off
-  flickerOn();
-  turnEverythingOn();//turn all on
-  delay(time);
-  turnOnAndOffAllByLayerUpAndDownNotTimed();
-  layerstompUpAndDown();
-  turnOnAndOffAllByColumnSideways();
-  delay(time);
-  aroundEdgeDown();
-  turnEverythingOff();
-  randomflicker();
-  randomRain();
-  diagonalRectangle();
-  goThroughAllLedsOneAtATime();
-  propeller();
-  spiralInAndOut();
-  flickerOff();
-  turnEverythingOff();
-  delay(2000);
+void Task1code(void* pvParameters) {
+  while (true) {
+    IPAddress broadcastIP(255, 255, 255, 255);
+    String mac = WiFi.macAddress();
+    WiFiUDP udp;
+    udp.begin(12345);
+    // Send a broadcast message to all devices on the network
+    for (size_t i = 0 ; i < 100; i++)
+    {
+      udp.beginPacket(broadcastIP, 12345);
+      udp.print(mac.c_str());
+      udp.endPacket();
+      delay(250);
+    }
+    //Serial.println(mac.c_str());
+    Serial.println(WiFi.localIP().toString().c_str());
+    delay(10000);
+  }
+}
+
+void loop() {
+  WiFiClient client = server.available();
+  if (client) {
+    while (client.connected()) {
+      if (client.available()) {
+        String data = client.readStringUntil('\r');
+        Serial.print("received: ");
+        if (data == sReceive_tmp)
+        {
+          //no change, do nothing
+        }
+        else
+        {
+          sReceive_tmp = data;
+          receive_data = data.toInt();
+        }
+      }
+    }
+    client.stop();
+  }
+
+  // run special mode
+  if (receive_data != 0)
+  {
+    int temp = 0, remainder = 0, data = receive_data;
+    // 64
+    remainder = data % 64;
+    temp = data - remainder;
+    data = remainder;
+    temp /= 64;
+    switch (temp)
+    {
+      case 1:
+        warm();
+        break;
+      case 2:
+        hot();
+        break;
+      default:
+        cold();
+        break;
+    }
+    delay(Scenes_delay);
+
+    remainder = data % 16;
+    temp = data - remainder;
+    data = remainder;
+    temp /= 16;
+    // 16
+    switch (temp)
+    {
+      case 1:
+        strong_wind();
+        break;
+      case 2:
+        no_wind();
+        break;
+      default:
+        breeze();
+        break;
+    }
+    delay(Scenes_delay);
+
+    remainder = data % 4;
+    temp = data - remainder;
+    data = remainder;
+    temp /= 4;
+    // 4
+    switch (temp)
+    {
+      case 1:
+        cloudy();
+        break;
+      case 2:
+        few_cloud();
+        break;
+      default:
+        no_cloud();
+        break;
+    }
+    delay(Scenes_delay);
+  
+    temp = data;
+    // 1
+    switch (temp)
+    {
+      case 1:
+        heavy_rain();
+        break;
+      case 2:
+        light_rain();
+        break;
+      default:
+        no_rain();
+        break;
+    }
+    delay(Scenes_delay);
+  }
 }
 
 //turn all off
 
-void turnEverythingOff()
- {
-   for(int i = 0; i<16; i++)
-   {
-     digitalWrite(column[i], 1);
-   }
-   for(int i = 0; i<4; i++)
-   {
-     digitalWrite(layer[i], 0);
-   }
- }
- 
+void turnEverythingOff() {
+  for (int i = 0; i < column_size; i++) {
+    digitalWrite(column[i], LOW);
+  }
+  for (int i = 0; i < 4; i++) {
+    digitalWrite(layer[i], LOW);
+  }
+}
+
 ////////////////////////////////////////////////////////////turn all on
-void turnEverythingOn()
-{
-  for(int i = 0; i<16; i++)
-  {
-    digitalWrite(column[i], 0);
-  }
-  //turning on layers
-  for(int i = 0; i<4; i++)
-  {
-    digitalWrite(layer[i], 1);
-  }
+void turnEverythingOn() {
+  digitalWrite(latchPin, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin, clockPin, LSBFIRST, 255);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  delay(LED_delay);
 }
-///////////////////////////////////////////////////////turn columns off
-void turnColumnsOff()
-{
-  for(int i = 0; i<16; i++)
-  {
-    digitalWrite(column[i], 1);
-  }
+
+////////////////////////////////////////////////////// cold
+
+void cold(){
+  digitalWrite(layer[0], LOW);
+  digitalWrite(layer[1], HIGH);
+  digitalWrite(layer[2], HIGH);
+  digitalWrite(layer[3], LOW);
+  digitalWrite(latchPin, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin, clockPin, LSBFIRST, 153);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin, HIGH); // 送完資料後要把 latchPin 設成高電位
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 153);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], LOW);
+  digitalWrite(layer[2], LOW);
+  digitalWrite(layer[3], HIGH);
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 102);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 102);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 6);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 96);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  delay(10);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 0);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
 }
-/////////////////////////////////////////////////////////////flicker on
-void flickerOn()
-{
-  int i = 150;
-  while(i != 0)
-  {
-    turnEverythingOn();
-    delay(i);
-    turnEverythingOff();
-    delay(i);
-    i-= 5;
-  }
+
+////////////////////////////////////////////////////// hot
+void hot() {
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], LOW);
+  digitalWrite(layer[2], LOW);
+  digitalWrite(layer[3], HIGH);
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 6);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 96);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 102);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 102);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 255);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 255);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+  digitalWrite(layer[0], LOW);
+  digitalWrite(layer[1], LOW);
+  digitalWrite(layer[2], LOW);
+  digitalWrite(layer[3], LOW);
+  delay(LED_delay);
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  delay(10);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 0);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
 }
-//////////////turn everything on and off by layer up and down NOT TIMED
-void turnOnAndOffAllByLayerUpAndDownNotTimed()
-{
-  int x = 75;
-  for(int i = 5; i != 0; i--)
-  {
-    turnEverythingOn();
-    for(int i = 4; i!=0; i--)
-    {
-      digitalWrite(layer[i-1], 0);
-      delay(x);
-    }
-    for(int i = 0; i<4; i++)
-    {
-      digitalWrite(layer[i], 1);
-      delay(x);
-    }
-      for(int i = 0; i<4; i++)
-    {
-      digitalWrite(layer[i], 0);
-      delay(x);
-    }
-    for(int i = 4; i!=0; i--)
-    {
-      digitalWrite(layer[i-1], 1);
-      delay(x);
-    }
-  }
+
+////////////////////////////////////////////////////// warm 
+void warm() {
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], LOW);
+  digitalWrite(layer[2], LOW);
+  digitalWrite(layer[3], HIGH);
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 96);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 6);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 144);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 9);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 96);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 6);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 6);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 96);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  delay(10);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 0);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
 }
-//////////////////////////turn everything on and off by column sideways
-void turnOnAndOffAllByColumnSideways()
-{
-  int x = 75;
-  turnEverythingOff();
-  //turn on layers
-  for(int i = 0; i<4; i++)
+
+////////////////////////////////////////////////////// no wind
+void no_wind() {
+  digitalWrite(layer[0], LOW);
+  digitalWrite(layer[1], LOW);
+  digitalWrite(layer[2], LOW);
+  digitalWrite(layer[3], LOW);
+
+  int value = 128;
+  for (int i = 0 ; i < 4 ; i++)
   {
-    digitalWrite(layer[i], 1);
+    digitalWrite(latchPin, LOW);
+    shiftOut(dataPin, clockPin, LSBFIRST, value);  //85就是2進位的01010101
+    digitalWrite(latchPin, HIGH);
+    value/=2;
+    delay(LED_delay);
   }
-  for(int y = 0; y<3; y++)
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 1);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  delay(LED_delay);
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 16);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+
+  value = 1;
+  for (int i = 0 ; i < 4 ; i++)
   {
-    //turn on 0-3
-    for(int i = 0; i<4; i++)
-    {
-      digitalWrite(column[i], 0);
-      delay(x);
-    }
-    //turn on 4-7
-    for(int i = 4; i<8; i++)
-    {
-      digitalWrite(column[i], 0);
-      delay(x);
-    }
-    //turn on 8-11
-    for(int i = 8; i<12; i++)
-    {
-      digitalWrite(column[i], 0);
-      delay(x);
-    }
-    //turn on 12-15
-    for(int i = 12; i<16; i++)
-    {
-      digitalWrite(column[i], 0);
-      delay(x);
-    }
-    //turn off 0-3
-    for(int i = 0; i<4; i++)
-    {
-      digitalWrite(column[i], 1);
-      delay(x);
-    }
-    //turn off 4-7
-    for(int i = 4; i<8; i++)
-    {
-      digitalWrite(column[i], 1);
-      delay(x);
-    }
-    //turn off 8-11
-    for(int i = 8; i<12; i++)
-    {
-      digitalWrite(column[i], 1);
-      delay(x);
-    }
-    //turn off 12-15
-    for(int i = 12; i<16; i++)
-    {
-      digitalWrite(column[i], 1);
-      delay(x);
-    }
-    //turn on 12-15
-    for(int i = 12; i<16; i++)
-    {
-      digitalWrite(column[i], 0);
-      delay(x);
-    }
-    //turn on 8-11
-    for(int i = 8; i<12; i++)
-    {
-      digitalWrite(column[i], 0);
-      delay(x);
-    }
-    //turn on 4-7
-    for(int i = 4; i<8; i++)
-    {
-      digitalWrite(column[i], 0);
-      delay(x);
-    }
-    //turn on 0-3
-    for(int i = 0; i<4; i++)
-    {
-      digitalWrite(column[i], 0);
-      delay(x);
-    }
-    //turn off 12-15
-    for(int i = 12; i<16; i++)
-    {
-      digitalWrite(column[i], 1);
-      delay(x);
-    }
-    //turn off 8-11
-    for(int i = 8; i<12; i++)
-    {
-      digitalWrite(column[i], 1);
-      delay(x);
-    }
-    //turn off 4-7
-    for(int i = 4; i<8; i++)
-    {
-      digitalWrite(column[i], 1);
-      delay(x);
-    }
-    //turn off 0-3
-    for(int i = 0; i<4; i++)
-    {
-      digitalWrite(column[i], 1);
-      delay(x);
-    }
+    digitalWrite(latchPin_2, LOW);
+    shiftOut(dataPin_2, clockPin_2, LSBFIRST, value);  //85就是2進位的01010101
+    digitalWrite(latchPin_2, HIGH);
+    value*=2;
+    delay(LED_delay);
   }
+
+  digitalWrite(latchPin_2, LOW);
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 128);  //85就是2進位的01010101
+  digitalWrite(latchPin_2, HIGH);
+  delay(LED_delay);
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 8);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 0);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  delay(10);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 0);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
 }
-/////////////////////////////////////////up and down single layer stomp
-void layerstompUpAndDown()
-{
-  int x = 75;
-  for(int i = 0; i<4; i++)
+
+////////////////////////////////////////////////////// breeze
+void breeze() {
+  digitalWrite(layer[0], LOW);
+  digitalWrite(layer[1], LOW);
+  digitalWrite(layer[2], LOW);
+  digitalWrite(layer[3], LOW);
+
+  int value = 192;
+  for (int i = 0 ; i < 3 ; i++)
   {
-    digitalWrite(layer[i], 0);
+    digitalWrite(latchPin, LOW);
+    shiftOut(dataPin, clockPin, LSBFIRST, value);  //85就是2進位的01010101
+    digitalWrite(latchPin, HIGH);
+    value/=2;
+    delay(LED_delay);
   }
-  for(int y = 0; y<5; y++)
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 17);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  delay(LED_delay);
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 1);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 16);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 17);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+
+  value = 3;
+  for (int i = 0 ; i < 3 ; i++)
   {
-    for(int count = 0; count<1; count++)
-    { 
-      for(int i = 0; i<4; i++)
-      {
-        digitalWrite(layer[i], 1);
-        delay(x);
-        digitalWrite(layer[i], 0);
-      }
-      for(int i = 4; i !=0; i--)
-      {
-        digitalWrite(layer[i-1], 1);
-        delay(x);
-        digitalWrite(layer[i-1], 0);
-      }
-    }
-    for(int i = 0; i<4; i++)
-    {
-      digitalWrite(layer[i], 1);
-      delay(x);
-    }
-    for(int i = 4; i!=0; i--)
-    {
-      digitalWrite(layer[i-1], 0);
-      delay(x);
-    }
+    digitalWrite(latchPin_2, LOW);
+    shiftOut(dataPin_2, clockPin_2, LSBFIRST, value);  //85就是2進位的01010101
+    digitalWrite(latchPin_2, HIGH);
+    value*=2;
+    delay(LED_delay);
   }
+
+  digitalWrite(latchPin_2, LOW);
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 136);  //85就是2進位的01010101
+  digitalWrite(latchPin_2, HIGH);
+  delay(LED_delay);
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 8);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 128);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 136);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 0);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  delay(10);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 0);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
 }
-////////////////////////////////////////////////////////////flicker off
-void flickerOff()
-{
-  turnEverythingOn();
-  for(int i = 0; i!= 150; i+=5)
+
+////////////////////////////////////////////////////// no cloud
+void no_cloud() {
+  int led1[12] = {160, 80, 33, 16, 1, 0, 0, 0, 0, 8, 128, 72};
+  int led2[12] = {0, 0, 0, 16, 1, 18, 5, 10, 132, 8, 128, 0};
+
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], LOW);
+  digitalWrite(layer[2], HIGH);
+  digitalWrite(layer[3], HIGH);
+
+  for (int i = 0 ; i < 12 ; i++)
   {
-    turnEverythingOff();
-    delay(i+50);
-    turnEverythingOn();
-    delay(i);
+    digitalWrite(latchPin, LOW);
+    shiftOut(dataPin, clockPin, LSBFIRST, led1[i]);  //85就是2進位的01010101
+    digitalWrite(latchPin, HIGH);
+    delay(10);
+    digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+    shiftOut(dataPin_2, clockPin_2, LSBFIRST, led2[i]);  //送出資料，170就是2進位的10101010
+    digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+    delay(LED_delay);
   }
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  delay(10);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 0);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
 }
-///////////////////////////////////////////around edge of the cube down
-void aroundEdgeDown()
-{
-  for(int x = 200; x != 0; x -=50)
+
+////////////////////////////////////////////////////// few cloud
+void few_cloud() {
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], LOW);
+  digitalWrite(layer[2], LOW);
+  digitalWrite(layer[3], HIGH);
+  int led1[12] = {192, 96, 48, 17, 1, 0, 0, 0, 0, 0, 8, 136};
+  int led2[12] = {0, 0, 0, 0, 8, 17, 3, 6, 12, 136, 128, 0};
+
+  for (int i = 0 ; i < 12 ; i++)
   {
-    turnEverythingOff();
-    for(int i = 4; i != 0; i--)
-    {
-      digitalWrite(layer[i-1], 1);
-      digitalWrite(column[5], 0);
-      digitalWrite(column[6], 0);
-      digitalWrite(column[9], 0);
-      digitalWrite(column[10], 0);
-      
-      digitalWrite(column[0], 0);
-      delay(x);
-      digitalWrite(column[0], 1);
-      digitalWrite(column[4], 0);
-      delay(x);
-      digitalWrite(column[4], 1);
-      digitalWrite(column[8], 0);
-      delay(x);
-      digitalWrite(column[8], 1);
-      digitalWrite(column[12], 0);
-      delay(x);
-      digitalWrite(column[12], 1);
-      digitalWrite(column[13], 0);
-      delay(x);
-      digitalWrite(column[13], 1);
-      digitalWrite(column[15], 0);
-      delay(x);
-      digitalWrite(column[15], 1);
-      digitalWrite(column[14], 0);
-      delay(x);
-      digitalWrite(column[14], 1);
-      digitalWrite(column[11], 0);
-      delay(x);
-      digitalWrite(column[11], 1);
-      digitalWrite(column[7], 0);
-      delay(x);
-      digitalWrite(column[7], 1);
-      digitalWrite(column[3], 0);
-      delay(x);
-      digitalWrite(column[3], 1);
-      digitalWrite(column[2], 0);
-      delay(x);
-      digitalWrite(column[2], 1);
-      digitalWrite(column[1], 0);
-      delay(x);
-      digitalWrite(column[1], 1);
-    }
+    digitalWrite(latchPin, LOW);
+    shiftOut(dataPin, clockPin, LSBFIRST, led1[i]);  //85就是2進位的01010101
+    digitalWrite(latchPin, HIGH);
+    delay(10);
+    digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+    shiftOut(dataPin_2, clockPin_2, LSBFIRST, led2[i]);  //送出資料，170就是2進位的10101010
+    digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+    delay(LED_delay);
   }
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  delay(10);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 0);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
 }
-/////////////////////////////////////////////////////////random flicker
-void randomflicker()
-{
-  turnEverythingOff();
-  int x = 10;
-  for(int i = 0; i !=750; i+=2)
-  {
-  int randomLayer = random(0,4);
-  int randomColumn = random(0,16);
+
+////////////////////////////////////////////////////// cloudy
+void cloudy() {
+  digitalWrite(layer[0], LOW);
+  digitalWrite(layer[1], LOW);
+  digitalWrite(layer[2], LOW);
+  digitalWrite(layer[3], HIGH);
+  delay(LED_delay);
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 112);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  delay(LED_delay);
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 1);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 17);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
   
-  digitalWrite(layer[randomLayer], 1);
-  digitalWrite(column[randomColumn], 0);
-  delay(x);
-  digitalWrite(layer[randomLayer], 0);
-  digitalWrite(column[randomColumn], 1);
-  delay(x); 
-  }
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 15);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 8);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 136);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 0);  //送出資料，170就是2進位的10101010
+  delay(LED_delay);
+
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], LOW);
+  digitalWrite(layer[2], LOW);
+  digitalWrite(layer[3], LOW);
+  delay(LED_delay);
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 112);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  delay(LED_delay);
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 1);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 17);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+  
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 15);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 8);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 136);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  delay(10);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 0);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
 }
-////////////////////////////////////////////////////////////random rain
-void randomRain()
-{
-  turnEverythingOff();
-  int x = 100;
-  for(int i = 0; i!=60; i+=2)
-  {
-    int randomColumn = random(0,16);
-    digitalWrite(column[randomColumn], 0);
-    digitalWrite(layer[0], 1);
-    delay(x+50);
-    digitalWrite(layer[0], 0);
-    digitalWrite(layer[1], 1);
-    delay(x);
-    digitalWrite(layer[1], 0);
-    digitalWrite(layer[2], 1);
-    delay(x);
-    digitalWrite(layer[2], 0);
-    digitalWrite(layer[3], 1);
-    delay(x+50);
-    digitalWrite(layer[3], 0);
-    digitalWrite(column[randomColumn], 1);
-  }
+
+////////////////////////////////////////////////////// heavy rain
+void heavy_rain() {
+  digitalWrite(layer[0], LOW);
+  digitalWrite(layer[1], HIGH);
+  digitalWrite(layer[2], HIGH);
+  digitalWrite(layer[3], HIGH);
+  digitalWrite(latchPin, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin, clockPin, LSBFIRST, 255);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin, HIGH); // 送完資料後要把 latchPin 設成高電位
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 255);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], LOW);
+  digitalWrite(layer[2], HIGH);
+  digitalWrite(layer[3], HIGH);
+  delay(LED_delay);
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], HIGH);
+  digitalWrite(layer[2], LOW);
+  digitalWrite(layer[3], HIGH);
+  delay(LED_delay);
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], HIGH);
+  digitalWrite(layer[2], HIGH);
+  digitalWrite(layer[3], LOW);
+  delay(LED_delay);
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], HIGH);
+  digitalWrite(layer[2], HIGH);
+  digitalWrite(layer[3], HIGH);
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  delay(10);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 0);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
 }
-/////////////////////////////////////////////////////diagonal rectangle
-void diagonalRectangle()
-{
-  int x = 350;
-  turnEverythingOff();
-  for(int count = 0; count<5; count++)
-  {
-    //top left
-    for(int i = 0; i<8; i++)
-    {
-      digitalWrite(column[i], 0);
-    }
-    digitalWrite(layer[3], 1);
-    digitalWrite(layer[2], 1);
-    delay(x);
-    turnEverythingOff();
-    //middle middle
-    for(int i = 4; i<12; i++)
-    {
-      digitalWrite(column[i], 0);
-    }
-    digitalWrite(layer[1], 1);
-    digitalWrite(layer[2], 1);
-    delay(x);
-    turnEverythingOff();
-    //bottom right
-    for(int i = 8; i<16; i++)
-    {
-      digitalWrite(column[i], 0);
-    }
-    digitalWrite(layer[0], 1);
-    digitalWrite(layer[1], 1);
-    delay(x);
-    turnEverythingOff();
-    //bottom middle
-    for(int i = 4; i<12; i++)
-    {
-      digitalWrite(column[i], 0);
-    }
-    digitalWrite(layer[0], 1);
-    digitalWrite(layer[1], 1);
-    delay(x);
-    turnEverythingOff();
-    //bottom left
-    for(int i = 0; i<8; i++)
-    {
-      digitalWrite(column[i], 0);
-    }
-    digitalWrite(layer[0], 1);
-    digitalWrite(layer[1], 1);
-    delay(x);
-    turnEverythingOff();
-    //middle middle
-    for(int i = 4; i<12; i++)
-    {
-      digitalWrite(column[i], 0);
-    }
-    digitalWrite(layer[1], 1);
-    digitalWrite(layer[2], 1);
-    delay(x);
-    turnEverythingOff();
-    //top right
-    for(int i = 8; i<16; i++)
-    {
-      digitalWrite(column[i], 0);
-    }
-    digitalWrite(layer[2], 1);
-    digitalWrite(layer[3], 1);
-    delay(x);
-    turnEverythingOff();
-    //top middle
-    for(int i = 4; i<12; i++)
-    {
-      digitalWrite(column[i], 0);
-    }
-    digitalWrite(layer[2], 1);
-    digitalWrite(layer[3], 1);
-    delay(x);
-    turnEverythingOff();
-  }
-  //top left
-  for(int i = 0; i<8; i++)
-  {
-    digitalWrite(column[i], 0);
-  }
-  digitalWrite(layer[3], 1);
-  digitalWrite(layer[2], 1);
-  delay(x);
-  turnEverythingOff();
+
+////////////////////////////////////////////////////// light rain
+void light_rain() {
+  digitalWrite(layer[0], LOW);
+  digitalWrite(layer[1], HIGH);
+  digitalWrite(layer[2], HIGH);
+  digitalWrite(layer[3], HIGH);
+  digitalWrite(latchPin, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin, clockPin, LSBFIRST, 6);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin, HIGH); // 送完資料後要把 latchPin 設成高電位
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 96);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], LOW);
+  digitalWrite(layer[2], HIGH);
+  digitalWrite(layer[3], HIGH);
+  delay(LED_delay);
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], HIGH);
+  digitalWrite(layer[2], LOW);
+  digitalWrite(layer[3], HIGH);
+  delay(LED_delay);
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], HIGH);
+  digitalWrite(layer[2], HIGH);
+  digitalWrite(layer[3], LOW);
+  delay(LED_delay);
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], HIGH);
+  digitalWrite(layer[2], HIGH);
+  digitalWrite(layer[3], HIGH);
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  delay(10);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 0);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
 }
-//////////////////////////////////////////////////////////////propeller
-void propeller()
-{
-  turnEverythingOff();
-  int x = 90;
-  for(int y = 4; y>0; y--)
-  {
-    for(int i = 0; i<6; i++)
-    {
-      //turn on layer
-      digitalWrite(layer[y-1], 1);
-      //a1
-      turnColumnsOff();
-      digitalWrite(column[0], 0);
-      digitalWrite(column[5], 0);
-      digitalWrite(column[10], 0);
-      digitalWrite(column[15], 0);
-      delay(x);
-      //b1
-      turnColumnsOff();
-      digitalWrite(column[4], 0);
-      digitalWrite(column[5], 0);
-      digitalWrite(column[10], 0);
-      digitalWrite(column[11], 0);
-      delay(x);
-      //c1
-      turnColumnsOff();
-      digitalWrite(column[6], 0);
-      digitalWrite(column[7], 0);
-      digitalWrite(column[8], 0);
-      digitalWrite(column[9], 0);
-      delay(x);
-      //d1
-      turnColumnsOff();
-      digitalWrite(column[3], 0);
-      digitalWrite(column[6], 0);
-      digitalWrite(column[9], 0);
-      digitalWrite(column[12], 0);
-      delay(x);
-      //d2
-      turnColumnsOff();
-      digitalWrite(column[2], 0);
-      digitalWrite(column[6], 0);
-      digitalWrite(column[9], 0);
-      digitalWrite(column[13], 0);
-      delay(x);
-      //d3
-      turnColumnsOff();
-      digitalWrite(column[1], 0);
-      digitalWrite(column[5], 0);
-      digitalWrite(column[10], 0);
-      digitalWrite(column[14], 0);
-      delay(x);
-    }
-  }
-  //d4
-  turnColumnsOff();
-  digitalWrite(column[0], 0);
-  digitalWrite(column[5], 0);
-  digitalWrite(column[10], 0);
-  digitalWrite(column[15], 0);
-  delay(x);
+
+////////////////////////////////////////////////////// no rain
+void no_rain() {
+  digitalWrite(layer[0], LOW);
+  digitalWrite(layer[1], HIGH);
+  digitalWrite(layer[2], HIGH);
+  digitalWrite(layer[3], HIGH);
+  digitalWrite(latchPin, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin, clockPin, LSBFIRST, 4);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin, HIGH); // 送完資料後要把 latchPin 設成高電位
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 32);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], LOW);
+  digitalWrite(layer[2], HIGH);
+  digitalWrite(layer[3], HIGH);
+  delay(LED_delay);
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], HIGH);
+  digitalWrite(layer[2], LOW);
+  digitalWrite(layer[3], HIGH);
+  delay(LED_delay);
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], HIGH);
+  digitalWrite(layer[2], HIGH);
+  digitalWrite(layer[3], LOW);
+  delay(LED_delay);
+  digitalWrite(layer[0], HIGH);
+  digitalWrite(layer[1], HIGH);
+  digitalWrite(layer[2], HIGH);
+  digitalWrite(layer[3], HIGH);
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  delay(10);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 0);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
 }
-//////////////////////////////////////////////////////spiral in and out
-void spiralInAndOut()
-{
-  turnEverythingOn();
-  int x = 60;
-  for(int i = 0; i<6; i++)
+
+////////////////////////////////////////////////////// strong wind
+void strong_wind() {
+  digitalWrite(layer[0], LOW);
+  digitalWrite(layer[1], LOW);
+  digitalWrite(layer[2], LOW);
+  digitalWrite(layer[3], LOW);
+  int led1[12] = {240, 113, 49, 9, 1, 0, 0, 0, 8, 136, 200, 136};
+  int led2[12] = {0, 0, 8, 9, 19, 23, 15, 142, 140, 136, 128, 0};
+
+  for (int i = 0 ; i < 12 ; i++)
   {
-    //spiral in clockwise
-    digitalWrite(column[0], 1);
-    delay(x);
-    digitalWrite(column[1], 1);
-    delay(x);
-    digitalWrite(column[2], 1);
-    delay(x);
-    digitalWrite(column[3], 1);
-    delay(x);
-    digitalWrite(column[7], 1);
-    delay(x);
-    digitalWrite(column[11], 1);
-    delay(x);
-    digitalWrite(column[15], 1);
-    delay(x);
-    digitalWrite(column[14], 1);
-    delay(x);
-    digitalWrite(column[13], 1);
-    delay(x);
-    digitalWrite(column[12], 1);
-    delay(x);
-    digitalWrite(column[8], 1);
-    delay(x);
-    digitalWrite(column[4], 1);
-    delay(x);
-    digitalWrite(column[5], 1);
-    delay(x);
-    digitalWrite(column[6], 1);
-    delay(x);
-    digitalWrite(column[10], 1);
-    delay(x);
-    digitalWrite(column[9], 1);
-    delay(x);
-    ///////////////////////////////////////spiral out counter clockwise
-    digitalWrite(column[9], 0);
-    delay(x);
-    digitalWrite(column[10], 0);
-    delay(x);
-    digitalWrite(column[6], 0);
-    delay(x);
-    digitalWrite(column[5], 0);
-    delay(x);
-    digitalWrite(column[4], 0);
-    delay(x);
-    digitalWrite(column[8], 0);
-    delay(x);
-    digitalWrite(column[12], 0);
-    delay(x);
-    digitalWrite(column[13], 0);
-    delay(x);
-    digitalWrite(column[14], 0);
-    delay(x);
-    digitalWrite(column[15], 0);
-    delay(x);
-    digitalWrite(column[11], 0);
-    delay(x);
-    digitalWrite(column[7], 0);
-    delay(x);
-    digitalWrite(column[3], 0);
-    delay(x);
-    digitalWrite(column[2], 0);
-    delay(x);
-    digitalWrite(column[1], 0);
-    delay(x);
-    digitalWrite(column[0], 0);
-    delay(x);
-    ///////////////////////////////////////spiral in counter clock wise
-    digitalWrite(column[0], 1);
-    delay(x);
-    digitalWrite(column[4], 1);
-    delay(x);
-    digitalWrite(column[8], 1);
-    delay(x);
-    digitalWrite(column[12], 1);
-    delay(x);
-    digitalWrite(column[13], 1);
-    delay(x);
-    digitalWrite(column[14], 1);
-    delay(x);
-    digitalWrite(column[15], 1);
-    delay(x);
-    digitalWrite(column[11], 1);
-    delay(x);
-    digitalWrite(column[7], 1);
-    delay(x);
-    digitalWrite(column[3], 1);
-    delay(x);
-    digitalWrite(column[2], 1);
-    delay(x);
-    digitalWrite(column[1], 1);
-    delay(x);
-    digitalWrite(column[5], 1);
-    delay(x);
-    digitalWrite(column[9], 1);
-    delay(x);
-    digitalWrite(column[10], 1);
-    delay(x);
-    digitalWrite(column[6], 1);
-    delay(x);
-    //////////////////////////////////////////////spiral out clock wise
-    digitalWrite(column[6], 0);
-    delay(x);
-    digitalWrite(column[10], 0);
-    delay(x);
-    digitalWrite(column[9], 0);
-    delay(x);
-    digitalWrite(column[5], 0);
-    delay(x);
-    digitalWrite(column[1], 0);
-    delay(x);
-    digitalWrite(column[2], 0);
-    delay(x);
-    digitalWrite(column[3], 0);
-    delay(x);
-    digitalWrite(column[7], 0);
-    delay(x);
-    digitalWrite(column[11], 0);
-    delay(x);
-    digitalWrite(column[15], 0);
-    delay(x);
-    digitalWrite(column[14], 0);
-    delay(x);
-    digitalWrite(column[13], 0);
-    delay(x);
-    digitalWrite(column[12], 0);
-    delay(x);
-    digitalWrite(column[8], 0);
-    delay(x);
-    digitalWrite(column[4], 0);
-    delay(x);
-    digitalWrite(column[0], 0);
-    delay(x);
+    digitalWrite(latchPin, LOW);
+    shiftOut(dataPin, clockPin, LSBFIRST, led1[i]);  //85就是2進位的01010101
+    digitalWrite(latchPin, HIGH);
+    delay(10);
+    digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+    shiftOut(dataPin_2, clockPin_2, LSBFIRST, led2[i]);  //送出資料，170就是2進位的10101010
+    digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+    delay(LED_delay);
   }
+
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, 0);  //85就是2進位的01010101
+  digitalWrite(latchPin, HIGH);
+  delay(10);
+  digitalWrite(latchPin_2, LOW);  // 送資料前要先把 latchPin 設成低電位
+  shiftOut(dataPin_2, clockPin_2, LSBFIRST, 0);  //送出資料，170就是2進位的10101010
+  digitalWrite(latchPin_2, HIGH); // 送完資料後要把 latchPin 設成高電位
+  delay(LED_delay);
 }
-//////////////////////////////////////go through all leds one at a time
-void goThroughAllLedsOneAtATime()
-{
-  int x = 15;
-  turnEverythingOff();
-  for(int y = 0; y<5; y++)
-  {
-    //0-3
-    for(int count = 4; count != 0; count--)
-    {
-      digitalWrite(layer[count-1], 1);
-      for(int i = 0; i<4; i++)
-      {
-        digitalWrite(column[i], 0);
-        delay(x);
-        digitalWrite(column[i], 1);
-        delay(x);
-      }
-    digitalWrite(layer[count-1], 0);
-    }
-    //4-7
-    for(int count = 0; count < 4; count++)
-    {
-      digitalWrite(layer[count], 1);
-      for(int i = 4; i<8; i++)
-      {
-        digitalWrite(column[i], 0);
-        delay(x);
-        digitalWrite(column[i], 1);
-        delay(x);
-      }
-    digitalWrite(layer[count], 0);
-    }
-    //8-11
-    for(int count = 4; count != 0; count--)
-    {
-      digitalWrite(layer[count-1], 1);
-      for(int i = 8; i<12; i++)
-      {
-        digitalWrite(column[i], 0);
-        delay(x);
-        digitalWrite(column[i], 1);
-        delay(x);
-      }
-    digitalWrite(layer[count-1], 0);
-    }
-    //12-15
-    for(int count = 0; count < 4; count++)
-    {
-      digitalWrite(layer[count], 1);
-      for(int i = 12; i<16; i++)
-      {
-        digitalWrite(column[i], 0);
-        delay(x);
-        digitalWrite(column[i], 1);
-        delay(x);
-      }
-    digitalWrite(layer[count], 0);
-    }
-  }
-}
+
