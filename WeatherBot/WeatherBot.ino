@@ -1,12 +1,14 @@
 #include <WiFi.h>
+#include <WiFiClient.h>
+
 #include <HTTPClient.h>
 #include <Arduino_JSON.h>
 #include "Images-diym.h"
 
 JSONVar myObject;
 
-#include <GxEPD2_BW.h> 
-#include <GxEPD2_3C.h> 
+#include <GxEPD2_BW.h>
+#include <GxEPD2_3C.h>
 #include "GxEPD2_display_selection_new_style.h"
 #include <Fonts/FreeSans12pt7b.h>
 #include <ESP32Servo.h>  // Include the ESP32 Arduino Servo Library instead of the original Arduino Servo Library
@@ -19,32 +21,41 @@ JSONVar myObject;
 ///                                                                                                                                                     /////
 ///                                                                                                                                                     /////
 
-const char* ssid = "YOUR-SSID";         //  YOUR WIFI SSID / NAME
-const char* password = "YOUR-WIFI-PASSWORD";   // YOUR WIFI PASSWORD
+const char* ssid = "3DP_2.4G";         //  YOUR WIFI SSID / NAME
+const char* password = "kingssel5262332";   // YOUR WIFI PASSWORD
 
-const int servoSpeed = 23;                // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
+String Host_Ip;
+String Remote_Ip;
+bool FindRemoteIP = false;
+int send_data = 0x0;
 
-const int servoSpeed_disc1 = 20;                // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
-const int servoSpeed_disc2 = 20;                // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
-const int servoSpeed_disc3 = 20;                // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
-const int servoSpeed_disc4 = 20;                // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
+const int servoSpeed_disc1 = 20;  // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
+const int servoSpeed_disc2 = 20;  // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
+const int servoSpeed_disc3 = 20;  // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
+const int servoSpeed_disc4 = 20;  // Controls the speed of rotation of the servos (0 to 90 with 90 being the fastest) Default = 23
 
-unsigned long timerDelay = 3600000;  //20 seconds = 20000.   60 second = 60000.  5 minutes. =  300000.  Hourly = 3600000. Daily = 86400000. Check the API call limits per hour/minute to avoid getting blocked/banned
+String todayWeatherApi = "http://api.openweathermap.org/data/2.5/weather?lat=24.8036&lon=120.9686&units=metric&exclude=minutely&appid=08b6abe9b75854e6bdaff5ad3c46dfca";
+
+String serverPath = "http://api.openweathermap.org/data/2.5/forecast/daily?lat=24.8036&lon=120.9686&cnt=2&units=metric&appid=4bb6f5ac74738d9973a4c56dd4696f55";
+
+// Your API call made up as follows: http://api.openweathermap.org/data/2.5/onecall?lat={latitude}}&lon=-{longitude}}&units=metric&exclude=minutely&appid={Your-API-Key}
+
+unsigned long timerDelay = 120000;  //20 seconds = 20000.   60 second = 60000.  5 minutes. =  300000.  Hourly = 3600000. Daily = 86400000. Check the API call limits per hour/minute to avoid getting blocked/banned
 
 // Temperature disc:
-const int temperatureBelowWhichToShowColdScene = 8;     // in degrees celcius
-const int temperatureAboveWhichToShowHotWeather = 20;   // in degrees celcius
+const int temperatureBelowWhichToShowColdScene = 8;    // in degrees celcius
+const int temperatureAboveWhichToShowHotWeather = 20;  // in degrees celcius
 
 // Wind Speed disc:
-const int windSpeedBelowWhichToShowStillScene = 4;         // in mph
-const int windSpeedAboveWhichToShowVeryWindyScene = 30;   // in mph
+const int windSpeedBelowWhichToShowStillScene = 4;       // in mph
+const int windSpeedAboveWhichToShowVeryWindyScene = 30;  // in mph
 
 // Cloud Cover disc:
 const int cloudCoverBelowWhichToShowClearSky = 4;        // in %
 const int cloudCoverAboveWhichToShowVeryCloudySky = 70;  // in %
 
 // Precipitation disc:
-const int rainfallBelowWhichToShowDrySky = 1;        // in mm of rainfall
+const int rainfallBelowWhichToShowDrySky = 1;      // in mm of rainfall
 const int rainfallAboveWhichToShowVeryWetSky = 5;  // in mm of rainfall
 
 
@@ -63,8 +74,8 @@ const int rainfallAboveWhichToShowVeryWetSky = 5;  // in mm of rainfall
 ///                                                                                                                                                      /////
 
 //const int currentNotchClearanceDelay = 400; //this delay ensures we leave the notch before we check the limit switch too soon and mistake the notch we were already in as the next notch! This can be adjusted only if you have issues with the discs not turning enough before the limit switched value is read. Default = 250
-const int currentNotchClearanceDelay[4] = {400, 300, 300, 300};
-const int MoveDelay[4] = {300, 400, 400, 400};
+const int currentNotchClearanceDelay[4] = { 400, 300, 300, 300 };
+const int MoveDelay[4] = { 300, 400, 400, 400 };
 ///                                                                                                                                                      /////
 ///                                                                                                                                                      /////
 ///                             END OF VARIABLE AND CONSTANTS TO BE EDITED ONLY IF YOU HAVE PROBLEMS                                                     /////
@@ -76,37 +87,38 @@ const int MoveDelay[4] = {300, 400, 400, 400};
 
 
 
-long lastTime = (timerDelay - (timerDelay*2)) + 1000;  //causes the API to request the data one second after start up and then fall back to the reguar interval as set in the timerDelay
+long lastTime = (timerDelay - (timerDelay * 2)) + 1000;  //causes the API to request the data one second after start up and then fall back to the reguar interval as set in the timerDelay
 
 
 String jsonBuffer;
 
+
 // --- Servo setup --
 
-  Servo discServo;  // create servo object to control a servo
+Servo discServo;  // create servo object to control a servo
 
-// Possible PWM GPIO pins on the ESP32: 0(used by on-board button),2,4,5(used by on-board LED),12-19,21-23,25-27,32-33 
-  const int servo1Pin = 25;      // GPIO pin used to connect the servo control (digital out)
-  const int servo2Pin = 19;      // GPIO pin used to connect the servo control (digital out)
-  const int servo3Pin = 21;      // GPIO pin used to connect the servo control (digital out)
-  const int servo4Pin = 22;      // GPIO pin used to connect the servo control (digital out)
+// Possible PWM GPIO pins on the ESP32: 0(used by on-board button),2,4,5(used by on-board LED),12-19,21-23,25-27,32-33
+const int servo1Pin = 25;  // GPIO pin used to connect the servo control (digital out)
+const int servo2Pin = 19;  // GPIO pin used to connect the servo control (digital out)
+const int servo3Pin = 21;  // GPIO pin used to connect the servo control (digital out)
+const int servo4Pin = 22;  // GPIO pin used to connect the servo control (digital out)
 
 // Published values for SG90 servos; adjust if needed
-  const int minUs = 1000;
-  const int maxUs = 2000;
+const int minUs = 1000;
+const int maxUs = 2000;
 
-const int  discOneSwitch = 26;    // the pin the front most limit switch is connected to for detecting disc ones position
-const int  discTwoSwitch = 27;    // the pin the second most limit switch from the front is connected to for detecting disc twos position
-const int  discThreeSwitch = 32;    // the pin the third limit switch from the front is connected to for detecting disc threes position
-const int  discFourSwitch = 33;    // the pin the fourth limit switch from the front is connected to for detecting disc fours position
+const int discOneSwitch = 26;    // the pin the front most limit switch is connected to for detecting disc ones position
+const int discTwoSwitch = 27;    // the pin the second most limit switch from the front is connected to for detecting disc twos position
+const int discThreeSwitch = 32;  // the pin the third limit switch from the front is connected to for detecting disc threes position
+const int discFourSwitch = 33;   // the pin the fourth limit switch from the front is connected to for detecting disc fours position
 
 //somewhere to store the correct scene disc info for the scene disc we are currently working with
 int currentDiscSwitch;
 int currentDiscRotationSpeed;
 int currentDiscServoPin;
 int currentDiscNumber;
-int *currentDiscPosition;
-int *currentDesiredDiscPosition;
+int* currentDiscPosition;
+int* currentDesiredDiscPosition;
 
 //somewhere to store each discs current position. (The values they have been initialised with are wildy incorrect and are used to spot errors in the code if they are printed later in the programme).
 int discOneCurrentPosition = 101;
@@ -123,28 +135,32 @@ bool weatherUpdateWaitingToBeShownOnDiscs = false;
 bool sceneDiscsHomed = false;
 
 String weatherTodaysDescription;
-  double weatherTodaysTempFeel;
-  double weatherTodaysPrecipitationProbability;
-  double weatherTodaysWindSpeed;
-  double weatherTodaysCloudCover;
-  double weatherTodaysPrecipitationQty;
+double weatherTodaysTempFeel;
+double weatherTodaysPrecipitationProbability;
+double weatherTodaysWindSpeed;
+double weatherTodaysCloudCover;
+double weatherTodaysPrecipitationQty;
 
 String weatherTomorrowsDescription;
-  double weatherTomorrowsTempFeel;
-  double weatherTomorrowsPrecipitationProbability;
-  double weatherTomorrowsWindSpeed;
-  double weatherTomorrowsCloudCover;
-  double weatherTomorrowsPrecipitationQty;
+double weatherTomorrowsTempFeel;
+double weatherTomorrowsPrecipitationProbability;
+double weatherTomorrowsWindSpeed;
+double weatherTomorrowsCloudCover;
+double weatherTomorrowsPrecipitationQty;
 
 //timers for servos
-  unsigned long startMillis;
-  unsigned long currentMillis;
-  unsigned long elapsedMillis;
+unsigned long startMillis;
+unsigned long currentMillis;
+unsigned long elapsedMillis;
 
 // Arrays for positioning each disc during startup
 int discPositionTimingArray[5];
 
 TaskHandle_t Task1;
+
+WiFiUDP udp;
+WiFiClient client;
+const int udpPort = 12345;
 
 void setup() {
   Serial.begin(115200);
@@ -153,37 +169,64 @@ void setup() {
   // Serial.print("Current value for 'lastTime' is: ");
   // Serial.println(lastTime);
 
-
-//create a task that will be executed in the Task1code() function, with priority 0 and executed on core 0. /* Task function. *//* name of task. *//* Stack size of task *//* parameter of the task *//* priority of the task *//* Task handle to keep track of created task */
-xTaskCreatePinnedToCore(Task1code,"Task1",10000,NULL,0,&Task1,0);
- 
+  //create a task that will be executed in the Task1code() function, with priority 0 and executed on core 0. /* Task function. *//* name of task. *//* Stack size of task *//* parameter of the task *//* priority of the task *//* Task handle to keep track of created task */
+  xTaskCreatePinnedToCore(Task1code, "Task1", 10000, NULL, 0, &Task1, 0);
 
   // Allow allocation of all timers
-    ESP32PWM::allocateTimer(0);
-    discServo.setPeriodHertz(50);// Standard 50hz servo
-
+  ESP32PWM::allocateTimer(0);
+  discServo.setPeriodHertz(50);  // Standard 50hz servo
 
   // Contact switches setup
+  pinMode(discOneSwitch, INPUT_PULLDOWN);
+  pinMode(discTwoSwitch, INPUT_PULLDOWN);
+  pinMode(discThreeSwitch, INPUT_PULLDOWN);
+  pinMode(discFourSwitch, INPUT_PULLDOWN);
 
-    pinMode(discOneSwitch, INPUT_PULLDOWN);
-    pinMode(discTwoSwitch, INPUT_PULLDOWN);
-    pinMode(discThreeSwitch, INPUT_PULLDOWN);
-    pinMode(discFourSwitch, INPUT_PULLDOWN);
-  
   //maintaining wifi conneciton
-    WiFi.begin(ssid, password);
-    Serial.println("Connecting");
+  WiFi.begin(ssid, password);
+  Serial.println("Connecting");
 
-    while (WiFi.status() != WL_CONNECTED) {
-      delay(500);
-      Serial.print(".");
-    }
-    Serial.println("");
-    Serial.print("Connected to WiFi network with IP Address: ");
-    Serial.println(WiFi.localIP());
+  //Setting WIFI MODE
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(2000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Host_Ip = WiFi.localIP().toString().c_str();
+  Serial.println("");
+  Serial.print("Connected to WiFi network with IP Address: ");
+  Serial.println(Host_Ip.c_str());
+
+  if (udp.begin(udpPort))
+  {
+    Serial.println("listening port 12345");
+  }
 }
 
 void loop() {
+  
+  if (FindRemoteIP == false) {
+    Remote_Ip = "";
+    int packetSize = udp.parsePacket();
+    Serial.println("packetSize");
+    Serial.println(packetSize);
+    if (packetSize == 17) {
+      FindRemoteIP = true;
+      Remote_Ip = udp.remoteIP().toString();
+      Serial.println(Remote_Ip.c_str());
+    }
+  } else {
+    if (!client.connected()) {
+      client.connect(Remote_Ip.c_str(), 8080);
+      if (client.connected()) {
+        Serial.println("Connected to Server");
+        client.print(send_data);
+        client.stop();
+        Serial.println("Disconnected from Server");
+      }
+    }
+  }
+  delay(2000);
   // Send the HTTP GET request and then process the JSON data
   if ((millis() - lastTime) > timerDelay) {
     // Check WiFi connection status
@@ -207,14 +250,6 @@ void loop() {
       weatherTodaysWindSpeed = myObject["wind"]["speed"];
       weatherTodaysCloudCover = myObject["clouds"]["all"];
       weatherTodaysPrecipitationQty  = myObject["rain"]["1h"];
-
-
-      // Serial.print("Amount of rain today: ");
-      // Serial.println(weatherTodaysPrecipitationQty);
-      // Serial.print("Amount of clouds today: ");
-      // Serial.println(weatherTodaysCloudCover);
-
-
 
       jsonBuffer = httpGETRequest(serverPath.c_str());
       myObject = JSON.parse(jsonBuffer);
@@ -247,29 +282,29 @@ void loop() {
 }
 
 //Second core tasks - controlling scene discs
-void Task1code( void * pvParameters ) {
-  for(;;) {
-  //Serial.print("This function task1 isrunning on core ");
-  //Serial.println(xPortGetCoreID());
+void Task1code(void* pvParameters) {
+  for (;;) {
+    //Serial.print("This function task1 isrunning on core ");
+    //Serial.println(xPortGetCoreID());
 
-    if (sceneDiscsHomed == false){
+    if (sceneDiscsHomed == false) {
       Serial.println("Trying to home all four scene discs...");
       homeAllSceneDiscs();
       Serial.println("...homing of scene discs completed.");
     }
 
-    Serial.print("The value of 'weatherUpdateWaitingToBeShownOnDiscs' is: "); //Check for an updated weather report which we have not diplayed on the scene discs yet
-    Serial.print(weatherUpdateWaitingToBeShownOnDiscs);
-    Serial.println(". This means we are still waiting for a weather forecast update via WiFi......");
+    //Serial.print("The value of 'weatherUpdateWaitingToBeShownOnDiscs' is: "); //Check for an updated weather report which we have not diplayed on the scene discs yet
+    //Serial.print(weatherUpdateWaitingToBeShownOnDiscs);
+    //Serial.println(". This means we are still waiting for a weather forecast update via WiFi......");
     delay(5000);
 
     if (weatherUpdateWaitingToBeShownOnDiscs == true) {
       Serial.println("Weather update received. Converting to scene discs locations...");
-      convertWeatherToSceneDiscsSceneLocations(); // look at the weather forecast from OpenWeatherMaps and figure out which segmnet of each discs we need to display
+      convertWeatherToSceneDiscsSceneLocations();  // look at the weather forecast from OpenWeatherMaps and figure out which segmnet of each discs we need to display
       Serial.println("... scene disc positions decided.");
       Serial.println("Moving discs to show weather forecast received from OpenWeatherMaps....");
       showWeatherOnSceneDiscs();
-      weatherUpdateWaitingToBeShownOnDiscs = false; //set the value to false as we the scene discs currently represent the same weather that the e-ink display is reporting.
+      weatherUpdateWaitingToBeShownOnDiscs = false;  //set the value to false as we the scene discs currently represent the same weather that the e-ink display is reporting.
       Serial.println("Weather update for the scene discs is complete. Waiting for the next update to display.");
     }
   }
@@ -302,8 +337,7 @@ String httpGETRequest(const char* serverName) {
   return payload;
 }
 
-void screenOutput()
-  {
+void screenOutput() {
   //display.init();
   display.init(115200, true, 2, false);
   display.setTextColor(GxEPD_BLACK);
@@ -317,21 +351,21 @@ void screenOutput()
   //first line of todays weather
   display.setCursor(5, 20);
   display.println(weatherTodaysDescription);
-  
+
   display.drawBitmap(0, 27, epd_bitmap_Temp_32, 32, 32, GxEPD_BLACK);
   display.setCursor(33, 50);
-  display.print(weatherTodaysTempFeel,1);
+  display.print(weatherTodaysTempFeel, 1);
   display.println("'C");
 
   //second line of todays weather
   display.drawBitmap(100, 27, epd_bitmap_Precip_32, 32, 32, GxEPD_BLACK);
   display.setCursor(130, 50);
-  display.print((weatherTodaysPrecipitationProbability),0);
+  display.print((weatherTodaysPrecipitationProbability), 0);
   display.println("%");
 
   display.drawBitmap(190, 27, epd_bitmap_Wind_32, 32, 32, GxEPD_BLACK);
   display.setCursor(222, 50);
-  display.print(weatherTodaysWindSpeed * 2.2369,0);
+  display.print(weatherTodaysWindSpeed * 2.2369, 0);
   display.println("m/s");
 
 
@@ -345,104 +379,96 @@ void screenOutput()
 
   display.drawBitmap(0, 97, epd_bitmap_Temp_32, 32, 32, GxEPD_BLACK);
   display.setCursor(33, 120);
-  display.print(weatherTomorrowsTempFeel,1);
+  display.print(weatherTomorrowsTempFeel, 1);
   display.println("'C");
-  
+
   display.drawBitmap(100, 97, epd_bitmap_Precip_32, 32, 32, GxEPD_BLACK);
   display.setCursor(130, 120);
-  display.print((weatherTomorrowsPrecipitationProbability),0);
+  display.print((weatherTomorrowsPrecipitationProbability), 0);
   display.println("%");
 
   display.drawBitmap(190, 97, epd_bitmap_Wind_32, 32, 32, GxEPD_BLACK);
   display.setCursor(222, 120);
-  display.print(weatherTomorrowsWindSpeed * 2.2369,0);
+  display.print(weatherTomorrowsWindSpeed * 2.2369, 0);
   display.println("m/s");
 
   //update the display
   display.display();
+}
 
-  }
-
-void screenOutputDIYMWelcome()
-  {
-    //display.init();
-    display.init(115200, true, 2, false);
-    display.setRotation(1);
-    display.firstPage();
-    display.drawBitmap(0, 0, epd_bitmap_diym_welcome, 296, 128, GxEPD_BLACK);
-    display.display();
-    delay(3000);
-  }
-void setDiscVariables(int servoToMove){
+void screenOutputDIYMWelcome() {
+  //display.init();
+  display.init(115200, true, 2, false);
+  display.setRotation(1);
+  display.firstPage();
+  display.drawBitmap(0, 0, epd_bitmap_diym_welcome, 296, 128, GxEPD_BLACK);
+  display.display();
+  delay(3000);
+}
+void setDiscVariables(int servoToMove) {
   Serial.print("setting servo");
   Serial.println(servoToMove);
-  if (servoToMove == 1){
+  if (servoToMove == 1) {
     currentDiscSwitch = discOneSwitch;
     currentDiscRotationSpeed = 90 + servoSpeed_disc1;
     currentDiscServoPin = servo1Pin;
     currentDiscNumber = 1;
     currentDiscPosition = &discOneCurrentPosition;
     currentDesiredDiscPosition = &discOneDesiredPosition;
-  } 
-  else if (servoToMove == 2){
-      currentDiscSwitch = discTwoSwitch;
-      currentDiscRotationSpeed = 90 - servoSpeed_disc2;
-      currentDiscServoPin = servo2Pin;
-      currentDiscNumber = 2;
-      currentDiscPosition = &discTwoCurrentPosition;
-      currentDesiredDiscPosition = &discTwoDesiredPosition;
-  }
-  else if (servoToMove == 3){
+  } else if (servoToMove == 2) {
+    currentDiscSwitch = discTwoSwitch;
+    currentDiscRotationSpeed = 90 - servoSpeed_disc2;
+    currentDiscServoPin = servo2Pin;
+    currentDiscNumber = 2;
+    currentDiscPosition = &discTwoCurrentPosition;
+    currentDesiredDiscPosition = &discTwoDesiredPosition;
+  } else if (servoToMove == 3) {
     currentDiscSwitch = discThreeSwitch;
     currentDiscRotationSpeed = 90 + servoSpeed_disc3;
     currentDiscServoPin = servo3Pin;
     currentDiscNumber = 3;
     currentDiscPosition = &discThreeCurrentPosition;
     currentDesiredDiscPosition = &discThreeDesiredPosition;
-  } 
-  else if (servoToMove == 4){
-      currentDiscSwitch = discFourSwitch;
-      currentDiscRotationSpeed = 90 - servoSpeed_disc4;
-      currentDiscServoPin = servo4Pin;
-      currentDiscNumber = 4;
-      currentDiscPosition = &discFourCurrentPosition;
-      currentDesiredDiscPosition = &discFourDesiredPosition;
-  }  
+  } else if (servoToMove == 4) {
+    currentDiscSwitch = discFourSwitch;
+    currentDiscRotationSpeed = 90 - servoSpeed_disc4;
+    currentDiscServoPin = servo4Pin;
+    currentDiscNumber = 4;
+    currentDiscPosition = &discFourCurrentPosition;
+    currentDesiredDiscPosition = &discFourDesiredPosition;
   }
+}
 
-void homeAllSceneDiscs(){
+void homeAllSceneDiscs() {
   Serial.println("<Function 'homeAllSceneDiscs'> Calculating positioning of scene discs and then setting them to the correct weather.....");
-  for (byte d = 1; d<5; d = d+1){
+  for (byte d = 1; d < 5; d = d + 1) {
     //select each disc in turn
-    if (d == 1){
+    if (d == 1) {
       setDiscVariables(1);
-    }
-    else if (d == 2){
+    } else if (d == 2) {
       setDiscVariables(2);
-    }
-    else if (d == 3){
+    } else if (d == 3) {
       setDiscVariables(3);
-    }
-    else if (d == 4){
+    } else if (d == 4) {
       setDiscVariables(4);
     }
     Serial.print("Counting the time to travel between the notches on disc");
     Serial.println(currentDiscNumber);
     //Find any notch to start our timings from
-    discServo.attach(currentDiscServoPin, minUs, maxUs);   // attaches the servo to the servo object
-    discServo.write(currentDiscRotationSpeed);                  // start the servo moving
+    discServo.attach(currentDiscServoPin, minUs, maxUs);  // attaches the servo to the servo object
+    discServo.write(currentDiscRotationSpeed);            // start the servo moving
     while (digitalRead(currentDiscSwitch) == 1) {
       delay(1);
     }
-    discServo.write(90); //stops the servo
+    discServo.write(90);  //stops the servo
     Serial.println("-------------------   found first notch ------------ ");
     delay(1000);
     //find the next five notches whilst timing the distance between them
-    for (byte n = 0; n<5; n = n+1){
+    for (byte n = 0; n < 5; n = n + 1) {
       startMillis = millis();
-      discServo.write(currentDiscRotationSpeed);                  // start the servo moving
-      delay(currentNotchClearanceDelay[d - 1]); //this delay ensures we leave the notch before we check the limit switch too soon and mistake the notch we were already in as the next notch!
-      
+      discServo.write(currentDiscRotationSpeed);  // start the servo moving
+      delay(currentNotchClearanceDelay[d - 1]);   //this delay ensures we leave the notch before we check the limit switch too soon and mistake the notch we were already in as the next notch!
+
       byte test, testcount = 0;
       while (true) {
         test = digitalRead(currentDiscSwitch);
@@ -458,7 +484,7 @@ void homeAllSceneDiscs(){
         }*/
         delay(1);
       }
-      discServo.write(90); //stops the servo
+      discServo.write(90);  //stops the servo
       currentMillis = millis();
       Serial.print("------------------- ");
       Serial.print(n);
@@ -466,27 +492,25 @@ void homeAllSceneDiscs(){
       delay(1500);
       discPositionTimingArray[n] = (currentMillis - startMillis);
     }
-    
+
     printDiscTimingArray();
     discServo.detach();
 
-  //find the 'double notch' marker by looking for the smallest distance between two notches
+    //find the 'double notch' marker by looking for the smallest distance between two notches
     int smallestTimingInArray = 99999999;
     int smallestTimingInPosition = 10;
     // Serial.print("Checking value in position:");
-    for(int i = 0; i<5; i = i+1)
-    {
-      if(discPositionTimingArray[i] < smallestTimingInArray)
-      {
-          smallestTimingInArray = discPositionTimingArray[i];
-          smallestTimingInPosition = i;        
+    for (int i = 0; i < 5; i = i + 1) {
+      if (discPositionTimingArray[i] < smallestTimingInArray) {
+        smallestTimingInArray = discPositionTimingArray[i];
+        smallestTimingInPosition = i;
       }
     }
-     Serial.println("....");
-     Serial.print("Smallest value found was: ");
-     Serial.print(smallestTimingInArray);
-     Serial.print(" which is found in the following position in the timings array: ");
-     Serial.println(smallestTimingInPosition);
+    Serial.println("....");
+    Serial.print("Smallest value found was: ");
+    Serial.print(smallestTimingInArray);
+    Serial.print(" which is found in the following position in the timings array: ");
+    Serial.println(smallestTimingInPosition);
     if (smallestTimingInPosition == 4)
       smallestTimingInPosition = 0;
     delay(2000);
@@ -498,20 +522,17 @@ void homeAllSceneDiscs(){
     Serial.println(". (If scene is reported as 0 then we are currently in the sceneless 'timing' notch.)");
 
 
-  Serial.println("Moving to home position....");
-  //now we know where the two close notches are on the disc we can turn the disc so that the first/home scene is viewable on top
-  if (smallestTimingInPosition == 0){
-    moveSpecifiedServo(d,1);
-  }
-  else if (smallestTimingInPosition == 1){
-    moveSpecifiedServo(d,2);
-  }
-  else if (smallestTimingInPosition == 2){
-    moveSpecifiedServo(d,3);
-  }
-  else if (smallestTimingInPosition == 3){
-    //Do nothing, this disc has already found itself in the homed position - woop woop!
-  }
+    Serial.println("Moving to home position....");
+    //now we know where the two close notches are on the disc we can turn the disc so that the first/home scene is viewable on top
+    if (smallestTimingInPosition == 0) {
+      moveSpecifiedServo(d, 1);
+    } else if (smallestTimingInPosition == 1) {
+      moveSpecifiedServo(d, 2);
+    } else if (smallestTimingInPosition == 2) {
+      moveSpecifiedServo(d, 3);
+    } else if (smallestTimingInPosition == 3) {
+      //Do nothing, this disc has already found itself in the homed position - woop woop!
+    }
 
     *currentDiscPosition = 1;
     Serial.print("The position of disc ");
@@ -524,107 +545,100 @@ void homeAllSceneDiscs(){
   sceneDiscsHomed = true;
 }
 
-void convertWeatherToSceneDiscsSceneLocations(){
-  if (weatherTodaysTempFeel <= temperatureBelowWhichToShowColdScene){
+void convertWeatherToSceneDiscsSceneLocations() {
+  send_data = 0;
+  if (weatherTodaysTempFeel <= temperatureBelowWhichToShowColdScene) {
     discOneDesiredPosition = 3;
-    }
-  else if (weatherTodaysTempFeel >= temperatureAboveWhichToShowHotWeather){
+    send_data += 64*3;
+  } else if (weatherTodaysTempFeel >= temperatureAboveWhichToShowHotWeather) {
     discOneDesiredPosition = 2;
-    }
-  else {
+    send_data += 64*2;
+  } else {
     discOneDesiredPosition = 1;
-    }
-
-  if (weatherTodaysWindSpeed <= windSpeedBelowWhichToShowStillScene){
-    discTwoDesiredPosition = 2;
-    }
-  else if (weatherTodaysWindSpeed >= windSpeedAboveWhichToShowVeryWindyScene){
-    discTwoDesiredPosition = 1;
-    }
-  else {
-    discTwoDesiredPosition = 3;
-    }
-
-  if (weatherTodaysCloudCover <= cloudCoverBelowWhichToShowClearSky){
-    discThreeDesiredPosition = 3;
-    }
-  else if (weatherTodaysCloudCover >= cloudCoverAboveWhichToShowVeryCloudySky){
-    discThreeDesiredPosition = 1;
-    }
-  else {
-    discThreeDesiredPosition = 2;
-    }
-
-  if (weatherTodaysPrecipitationQty <= rainfallBelowWhichToShowDrySky){
-    discFourDesiredPosition = 3;
-    }
-  else if (weatherTodaysPrecipitationQty >= rainfallAboveWhichToShowVeryWetSky){
-    discFourDesiredPosition = 1;
-    }
-  else {
-    discFourDesiredPosition = 2;
-    }
-}
-
-void showWeatherOnSceneDiscs(){
-
-  for (byte d = 1; d<5; d = d+1){
-    //select each disc in turn
-      if (d == 1){
-        setDiscVariables(1);        
-      }
-      else if (d == 2){
-        setDiscVariables(2);
-      }
-      else if (d == 3){
-        setDiscVariables(3);
-      }
-      else if (d == 4){
-        setDiscVariables(4);
-      }
-
-      if (*currentDiscPosition == 1 && *currentDesiredDiscPosition == 1) {
-        //do nothing
-      }
-      else if (*currentDiscPosition == 1 && *currentDesiredDiscPosition == 2){
-        moveSpecifiedServo(d,1);
-      }
-      else if (*currentDiscPosition == 1 && *currentDesiredDiscPosition == 3){
-        moveSpecifiedServo(d,2);
-      }
-      else if (*currentDiscPosition == 2 && *currentDesiredDiscPosition == 1) {
-        moveSpecifiedServo(d,3);
-      }
-      else if (*currentDiscPosition == 2 && *currentDesiredDiscPosition == 2){
-        //do nothing
-      }
-      else if (*currentDiscPosition == 2 && *currentDesiredDiscPosition == 3){
-        moveSpecifiedServo(d,1);
-      }
-      else if (*currentDiscPosition == 3 && *currentDesiredDiscPosition == 1) {
-        moveSpecifiedServo(d,2);
-      }
-      else if (*currentDiscPosition == 3 && *currentDesiredDiscPosition == 2){
-        moveSpecifiedServo(d,3);
-      }
-      else if (*currentDiscPosition == 3 && *currentDesiredDiscPosition == 3){
-        //do nothing
-      }
-      *currentDiscPosition = *currentDesiredDiscPosition;
+    send_data += 64*1;
   }
 
+  if (weatherTodaysWindSpeed <= windSpeedBelowWhichToShowStillScene) {
+    discTwoDesiredPosition = 2;
+    send_data += 16*2;
+  } else if (weatherTodaysWindSpeed >= windSpeedAboveWhichToShowVeryWindyScene) {
+    discTwoDesiredPosition = 1;
+    send_data += 16*1;
+  } else {
+    discTwoDesiredPosition = 3;
+    send_data += 16*3;
+  }
+
+  if (weatherTodaysCloudCover <= cloudCoverBelowWhichToShowClearSky) {
+    discThreeDesiredPosition = 3;
+    send_data += 4*3;
+  } else if (weatherTodaysCloudCover >= cloudCoverAboveWhichToShowVeryCloudySky) {
+    discThreeDesiredPosition = 1;
+    send_data += 4*1;
+  } else {
+    discThreeDesiredPosition = 2;
+    send_data += 4*2;
+  }
+
+  if (weatherTodaysPrecipitationQty <= rainfallBelowWhichToShowDrySky) {
+    discFourDesiredPosition = 3;
+    send_data += 1*3;
+  } else if (weatherTodaysPrecipitationQty >= rainfallAboveWhichToShowVeryWetSky) {
+    discFourDesiredPosition = 1;
+    send_data += 1*1;
+  } else {
+    discFourDesiredPosition = 2;
+    send_data += 1*2;
+  }
+}
+
+void showWeatherOnSceneDiscs() {
+
+  for (byte d = 1; d < 5; d = d + 1) {
+    //select each disc in turn
+    if (d == 1) {
+      setDiscVariables(1);
+    } else if (d == 2) {
+      setDiscVariables(2);
+    } else if (d == 3) {
+      setDiscVariables(3);
+    } else if (d == 4) {
+      setDiscVariables(4);
+    }
+
+    if (*currentDiscPosition == 1 && *currentDesiredDiscPosition == 1) {
+      //do nothing
+    } else if (*currentDiscPosition == 1 && *currentDesiredDiscPosition == 2) {
+      moveSpecifiedServo(d, 1);
+    } else if (*currentDiscPosition == 1 && *currentDesiredDiscPosition == 3) {
+      moveSpecifiedServo(d, 2);
+    } else if (*currentDiscPosition == 2 && *currentDesiredDiscPosition == 1) {
+      moveSpecifiedServo(d, 3);
+    } else if (*currentDiscPosition == 2 && *currentDesiredDiscPosition == 2) {
+      //do nothing
+    } else if (*currentDiscPosition == 2 && *currentDesiredDiscPosition == 3) {
+      moveSpecifiedServo(d, 1);
+    } else if (*currentDiscPosition == 3 && *currentDesiredDiscPosition == 1) {
+      moveSpecifiedServo(d, 2);
+    } else if (*currentDiscPosition == 3 && *currentDesiredDiscPosition == 2) {
+      moveSpecifiedServo(d, 3);
+    } else if (*currentDiscPosition == 3 && *currentDesiredDiscPosition == 3) {
+      //do nothing
+    }
+    *currentDiscPosition = *currentDesiredDiscPosition;
+  }
 }
 
 
-void printDiscTimingArray(){
+void printDiscTimingArray() {
   Serial.print("<Function 'printDiscTimingArray'>  Printing array of timings found for disc ");
   Serial.println(currentDiscNumber);
-  for (byte i = 0; i<5; i = i+1) {
+  for (byte i = 0; i < 5; i = i + 1) {
     Serial.println(discPositionTimingArray[i]);
   }
 }
 
-void moveSpecifiedServo(int servoBeingMoved, int positionsToMove){
+void moveSpecifiedServo(int servoBeingMoved, int positionsToMove) {
   Serial.println("");
   setDiscVariables(servoBeingMoved);
   Serial.print("Function <moveSpecifiedServo>:  Moving specified servo for disc ");
@@ -632,22 +646,22 @@ void moveSpecifiedServo(int servoBeingMoved, int positionsToMove){
   Serial.print("Moving disc and then checking disc switch. We need to do this ");
   Serial.print(positionsToMove);
   Serial.println(" times.");
-  for (byte r = positionsToMove; r != 0; r = r-1){
-    discServo.attach(currentDiscServoPin, minUs, maxUs);   // attaches the servo to the servo object
-    discServo.write(currentDiscRotationSpeed);                  // start the servo moving
+  for (byte r = positionsToMove; r != 0; r = r - 1) {
+    discServo.attach(currentDiscServoPin, minUs, maxUs);  // attaches the servo to the servo object
+    discServo.write(currentDiscRotationSpeed);            // start the servo moving
     delay(MoveDelay[currentDiscNumber - 1]);
     while (digitalRead(currentDiscSwitch) == 1) {
       delay(1);
     }
-    discServo.write(90); //stops the servo
+    discServo.write(90);  //stops the servo
     delay(10);
-    discServo.write(90); //stops the servo
+    discServo.write(90);  //stops the servo
     delay(10);
-    discServo.write(90); //stops the servo
+    discServo.write(90);  //stops the servo
     delay(3000);
     discServo.detach();
     Serial.print("We still need to move ");
-    Serial.print(r-1);
+    Serial.print(r - 1);
     Serial.println(" time(s) more around to get to where we want to be.");
   }
   Serial.println("We're there.");
